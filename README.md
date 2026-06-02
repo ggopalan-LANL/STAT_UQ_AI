@@ -2,6 +2,6 @@ This repository allows for reproducibility of results in the following paper, wh
 
 Longjohn, R., Gopalan, G., & Casleton, E. (2025). Statistical uncertainty quantification for aggregate performance metrics in machine learning benchmarks. arXiv preprint arXiv:2501.04234.
 
-Code is contained in self-contained R Markdown files (VTAB_BHM.Rmd) and (VTAB_interval_plots.RMD), which can be executed within R Studio.
+Code is contained in self-contained R Markdown files (VTAB_BHM.Rmd and VTAB_interval_plots.RMD), which can be executed within R Studio.
 
 This repository corresponds to O5052, AI Evaluation with UQ, as reviewed by the Richard P. Feynman Center for Innovation at Los Alamos National Laboratory.
