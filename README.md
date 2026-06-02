@@ -1,7 +1,7 @@
-This repository allows for reproducibility of results in the following paper, which was presented as a poster during the NeurIPS 2024 Workshop on Statistical Frontiers in LLMs and Foundation Models. 
+This repository allows for reproducibility of results in the following paper, which was presented as a poster during the NeurIPS 2024 Workshop on Statistical Frontiers in LLMs and Foundation Models:
 
 Longjohn, R., Gopalan, G., & Casleton, E. (2025). Statistical uncertainty quantification for aggregate performance metrics in machine learning benchmarks. arXiv preprint arXiv:2501.04234.
 
-Code is contained in self-contained R Markdown files (VTAB_BHM.Rmd and VTAB_interval_plots.RMD), which can be executed within R Studio.
+Code is contained in self-contained R Markdown files (VTAB_BHM.Rmd and VTAB_interval_plots.RMD), which can be executed within RStudio.
 
 This repository corresponds to O5052, AI Evaluation with UQ, as reviewed by the Richard P. Feynman Center for Innovation at Los Alamos National Laboratory.
