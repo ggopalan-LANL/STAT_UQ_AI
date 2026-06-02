@@ -1,0 +1,878 @@
+---
+title: "Bayesian hierarchical model VTAB task evaluation analysis"
+output:
+  pdf_document: default
+  html_document: default
+date: "2024-05-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## VTAB data ingest 
+Load VTAB data
+```{r}
+# models being compared
+models <- c("Sup-Rotation-100%",
+            "Sup-Exemplar-100%",
+            "Sup-100%",
+            "Semi-Exemplar-10%",
+            "Semi-Rotation-10%",
+            "Rotation",
+            "Exemplar",
+            "Rel.Pat.Loc",
+            "Jigsaw",
+            "Uncond-BigGAN",
+            "From-Scratch",
+            "Cond-BigGAN",
+            "WAE-MMD",
+            "VAE",
+            "WAE-UKL",
+            "WAE-GAN"
+            )
+# task accuracies
+cifar100 <- c(53.7, 56.7, 57.0, 53.2,
+              48.1, 27.3 ,11.0, 19.1,
+              18.9, 15.2, 13.2, 21.1,
+              10.7, 9.89, 8.23, 7.76)
+caltech101 <- c(91.7, 90.2, 91.0, 88.6,
+                88.1, 77.6, 69.6, 68.5,
+                66.7, 58.7, 38.2, 62.1,
+                35.5, 34.3, 29.3, 29.9)
+camelyon <- c(83.4, 83.7, 80.6, 83.2,
+              81.4, 80.4, 79.1, 77.5,
+              76.0, 76.3, 75.6, 77.2,
+              73.8, 72.6, 69.8, 69.0)
+clevr_count <- c(47.3, 37.8, 41.0, 42.3,
+                 40.9, 45.6, 54.8, 43.5,
+                 42.8, 44.7, 38.8, 12.3,
+                 34.4, 36.8, 32.1, 32.4)
+clevr_dist <- c(57.2, 56.0, 56.1, 57.4,
+                55.3, 60.9, 60.9, 59.6,
+                55.9, 55.8, 55.2, 24.5,
+                58.1, 61.2, 55.2, 55.1)
+dmlab <- c(36.6, 37.8, 36.3, 36.7, 
+           37.9, 40.4, 36.7, 33.6, 
+           30.5, 28.7, 26.6, 28.1, 
+           26.3, 26.7, 22.4, 25.0)
+dtd <- c(69.5, 67.3, 66.0, 60.8, 
+         64.3, 51.4, 48.9, 52.2, 
+         51.4, 34.1, 20.6, 38.5, 
+         8.03, 10.3, 7.18, 6.54)
+eurosat <- c(96.0, 95.7, 95.3, 95.2, 
+             95.6, 93.5, 94.7, 92.6, 
+             91.5, 74.2, 85.0, 30.6, 
+             73.1, 73.1, 61.2, 59.1)
+flowers102 <- c(90.8, 88.3, 88.6, 86.8, 
+                87.6, 68.8, 69.9, 69.0, 
+                66.1, 49.9, 40.2, 60.0, 
+                18.4, 18.2, 13.1, 12.0)
+kitti_dist <- c(77.1, 77.7, 70.6, 71.4, 
+                57.4, 75.9, 75.5, 68.2, 
+                68.2, 37.2, 42.7, 41.0, 
+                55.4, 42.9, 50.9, 54.7)
+pets <- c(88.1, 89.7, 89.9, 85.3, 
+          84.6, 48.3, 42.3, 41.3, 
+          37.5, 18.7, 12.1, 23.4, 
+          9.28, 9.39, 7.75, 7.45)
+resisc45 <- c(82.0, 80.5, 80.8, 77.3, 
+              79.5, 69.4, 67.3, 65.4, 
+              66.2, 35.7, 42.6, 48.2, 
+              22.4, 23.5, 16.4, 14.4)
+retinopathy <- c(71.1, 72.4, 73.2, 71.7, 
+                 73.0, 70.9, 72.5, 70.7, 
+                 72.4, 66.1, 72.6, 73.6, 
+                 73.2, 67.7, 73.6, 73.4)
+svhn <- c(88.5, 88.9, 87.3, 88.0, 
+          87.2, 89.4, 87.1, 60.9, 
+          55.1, 65.4, 66.1, 59.4, 
+          58.7, 49.3, 36.6, 42.4)
+sun397 <- c(32.8, 34.5, 34.4, 29.0, 
+            27.0, 12.9, 13.7, 11.1, 
+            12.1, 9.43, 5.02, 11.9, 
+            4.91, 4.49, 3.32, 3.18)
+dspr_loc <- c(88.3, 84.3, 85.7, 74.9, 
+              87.5, 89.6, 91.8, 70.7, 
+              69.5, 76.8, 78.4, 54.5, 
+              86.9, 89.9, 72.9, 70.1)
+dspr_orient <- c(52.1, 53.9, 46.0, 53.9, 
+                 53.5, 49.5, 44.3, 29.3, 
+                 35.0, 48.4, 39.2, 54.7, 
+                 26.3, 23.0, 23.0, 17.8)
+snorb_azim <- c(51.6, 49.6, 45.7, 52.7, 
+                51.9, 52.2, 42.1, 47.2, 
+                44.9, 33.9, 30.1, 33.2, 
+                31.6, 35.6, 27.5, 27.0)
+snorb_elev <- c(33.7, 40.5, 35.4, 32.3, 
+                35.7, 44.3, 40.3, 35.2, 
+                36.3, 40.3, 37.6, 32.5, 
+                28.1, 37.5, 28.1, 25.4)
+
+paper_lb_1k <- data.frame(model = models,
+                          cifar100,
+                          caltech101,
+                          camelyon,
+                          clevr_count,
+                          clevr_dist,
+                          dmlab,
+                          dtd,
+                          eurosat,
+                          flowers102,
+                          kitti_dist,
+                          pets,
+                          resisc45,
+                          retinopathy,
+                          svhn,
+                          sun397,
+                          dspr_loc,
+                          dspr_orient,
+                          snorb_azim,
+                          snorb_elev
+                          )
+rm(models,
+   cifar100,
+   caltech101,
+   camelyon,
+   clevr_count,
+   clevr_dist,
+   dmlab,
+   dtd,
+   eurosat,
+   flowers102,
+   kitti_dist,
+   pets,
+   resisc45,
+   retinopathy,
+   svhn,
+   sun397,
+   dspr_loc,
+   dspr_orient,
+   snorb_azim,
+   snorb_elev)
+
+# full train leaderboard from the official website ------------------------
+# models being compared
+models <- c("Sup-Rotation-100%",
+            "Sup-Exemplar-100%",
+            "Sup-100%",
+            "Semi-Exemplar-10%",
+            "Semi-Rotation-10%",
+            "Rotation",
+            "Exemplar",
+            "Rel.Pat.Loc",
+            "Jigsaw",
+            "From-Scratch",
+            "Uncond-BigGAN",
+            "VAE",
+            "WAE-MMD",
+            "Cond-BigGAN",
+            "WAE-GAN",
+            "WAE-UKL"
+)
+# task accuracies
+cifar100 <- c(84.8, 84.1, 83.8, 82.7, 
+              82.4, 73.6, 70.7, 65.7, 
+              65.3, 64.4, 58.1, 44.2,
+              38.8, 56.3, 24.8, 23.3)
+caltech101 <- c(94.6, 94.4, 94.1, 85.3, 
+                88.1, 88.3, 81.9, 79.9, 
+                79.1, 55.9, 73.6, 48.4, 
+                50.8, 0.148, 42.0, 41.7)
+camelyon <- c(85.9, 86.7, 83.9, 86.0, 
+              78.6, 86.4, 84.7, 85.3, 
+              83.0, 81.2, 82.2, 81.3, 
+              80.6, 81.3, 77.1, 76.4)
+clevr_count <- c(99.8, 99.8, 99.8, 99.8, 
+                 99.8, 99.8, 99.8, 99.5, 
+                 99.6, 99.7, 47.6, 98.4, 
+                 98.1, 12.4, 52.2, 44.5)
+clevr_dist <- c(92.5, 92.7, 92.1, 93.1, 
+                93.2, 93.3, 93.3, 87.7, 
+                88.6, 89.4, 54.9, 90.1, 
+                89.3, 24.5, 70.2, 67.8)
+dmlab <- c(76.5, 76.8, 76.4, 76.8, 
+           76.1, 76.8, 74.7, 71.5, 
+           72.0, 71.5, 54.8, 59.7, 
+           52.6, 51.4, 37.3, 36.7)
+dtd <- c(75.9, 74.5, 74.0, 70.5, 
+         72.4, 63.3, 61.1, 65.2, 
+         63.9, 31.3, 44.9, 16.0, 
+         11.0, 44.8, 8.67, 12.3)
+eurosat <- c(98.8, 98.6, 98.6, 98.6, 
+             98.7, 98.3, 98.5, 97.8, 
+             97.9, 96.2, 89.8, 92.5, 
+             94.1, 94.5, 81.5, 78.1)
+flowers102 <- c(94.7, 93.4, 93.2, 92.2, 
+                93.2, 83.4, 79.3, 78.8, 
+                77.9, 50.6, 63.5, 18.4, 
+                20.8, 68.8, 15.5, 17.2)
+kitti_dist <- c(82.3, 84.0, 80.7, 81.5, 
+                81.0, 82.6, 78.2, 75.0, 
+                74.7, 68.4, 57.4, 57.0, 
+                61.6, 49.7, 62.3, 55.1)
+pets <- c(91.5, 91.8, 91.9, 89.0, 
+          87.9, 71.8, 67.8, 66.8, 
+          65.4, 23.8, 30.9, 14.0, 
+          16.2, 31.6, 13.1, 12.3)
+resisc45 <- c(94.9, 95.1, 95.3, 94.7, 
+              94.9, 93.4, 93.5, 91.5, 
+              92.0, 86.8, 75.4, 65.0, 
+              64.8, 76.5, 38.4, 36.8)
+retinopathy <- c(79.5, 79.5, 79.3, 78.8,
+                 79.0, 78.6, 79.0, 79.8, 
+                 80.1, 76.8, 75.9, 74.2, 
+                 73.8, 75.3, 73.6, 73.6)
+svhn <- c(97.0, 97.1, 97.0, 97.0, 
+          96.9, 96.9, 96.7, 93.7, 
+          93.9, 96.3, 93.0, 93.1, 
+          90.9, 91.4, 78.2, 65.5)
+sun397 <- c(70.2, 69.4, 70.7, 67.4, 
+            66.7, 60.5, 58.2, 58.0, 
+            59.2, 52.7, 46.9, 29.3, 
+            31.6, 44.9, 12.8, 12.0)
+dspr_loc <- c(100, 100, 100, 100,
+              100, 100, 100, 100,
+              100, 100, 86.1, 100,
+              100, 6.16, 97.7, 98.1)
+dspr_orient <- c(96.5, 96.4, 96.4, 96.5, 
+                 96.5, 96.5, 96.5, 90.4,
+                 90.3, 96.3, 95.9, 94.7,
+                 90.2, 7.45, 49.9, 51.4)
+snorb_azim <- c(100, 99.8, 99.8, 100,
+                99.9, 99.9, 99.9, 99.7,
+                99.9, 99.9, 88.1, 97.9,
+                96.3, 80.6, 33.4, 35.9)
+snorb_elev <- c(98.4, 98.0, 97.7, 97.8,
+                97.5, 98.0, 97.4, 92.6,
+                93.6, 91.7, 76.6, 95.6,
+                72.4, 79.2, 52.2, 51.0)
+
+paper_lb_full <- data.frame(model = models,
+                          cifar100,
+                          caltech101,
+                          camelyon,
+                          clevr_count,
+                          clevr_dist,
+                          dmlab,
+                          dtd,
+                          eurosat,
+                          flowers102,
+                          kitti_dist,
+                          pets,
+                          resisc45,
+                          retinopathy,
+                          svhn,
+                          sun397,
+                          dspr_loc,
+                          dspr_orient,
+                          snorb_azim,
+                          snorb_elev
+)
+rm(models,
+   cifar100,
+   caltech101,
+   camelyon,
+   clevr_count,
+   clevr_dist,
+   dmlab,
+   dtd,
+   eurosat,
+   flowers102,
+   kitti_dist,
+   pets,
+   resisc45,
+   retinopathy,
+   svhn,
+   sun397,
+   dspr_loc,
+   dspr_orient,
+   snorb_azim,
+   snorb_elev)
+
+
+# task metadata -----------------------------------------------------------
+
+tasks <- c("cifar100",
+           "caltech101",
+           "camelyon",
+           "clevr_count",
+           "clevr_dist",
+           "dmlab",
+           "dtd",
+           "eurosat",
+           "flowers102",
+           "kitti_dist",
+           "pets",
+           "resisc45",
+           "retinopathy",
+           "svhn",
+           "sun397",
+           "dspr_loc",
+           "dspr_orient",
+           "snorb_azim",
+           "snorb_elev")
+
+categories <- c("natural",
+                "natural",
+                "specialized",
+                "structured",
+                "structured",
+                "structured",
+                "natural",
+                "specialized",
+                "natural",
+                "structured",
+                "natural",
+                "specialized",
+                "specialized",
+                "natural",
+                "natural",
+                "structured",
+                "structured",
+                "structured",
+                "structured")
+sizes <- c(10000,
+           6084,
+           32768,
+           15000,
+           15000,
+           22735,
+           1880,
+           5400,
+           6149,
+           711, # note kitti-dist training sizes don't match up bw github and the paper
+           3669,
+           6300,
+           42670,
+           26032,
+           21750,
+           73728,
+           73728,
+           12150,
+           12150)
+task_metadata <- data.frame(task = tasks,
+                            category = categories,
+                            size = sizes)
+rm(tasks, categories, sizes)
+```
+
+## Slice sampling MCMC
+Code for slice sampling from Neal et al. (2003)
+```{r}
+# R FUNCTIONS FOR PERFORMING UNIVARIATE SLICE SAMPLING.
+#
+# Radford M. Neal, 17 March 2008.
+#
+# Implements, with slight modifications and extensions, the algorithm described
+# in Figures 3 and 5 of the following paper:
+#
+#   Neal, R. M (2003) "Slice sampling" (with discussion), Annals of Statistics,
+#      vol. 31, no. 3, pp. 705-767.
+#
+# See the documentation for the function uni.slice below for how to use it.
+# The function uni.slice.test was used to test the uni.slice function.
+
+
+# GLOBAL VARIABLES FOR RECORDING PERFORMANCE.
+
+uni.slice.calls <- 0	# Number of calls of the slice sampling function
+uni.slice.evals <- 0	# Number of density evaluations done in these calls
+
+
+# UNIVARIATE SLICE SAMPLING WITH STEPPING OUT AND SHRINKAGE.
+#
+# Performs a slice sampling update from an initial point to a new point that 
+# leaves invariant the distribution with the specified log density function.
+#
+# Arguments:
+#
+#   x0    Initial point
+#   g     Function returning the log of the probability density (plus constant)
+#   w     Size of the steps for creating interval (default 1)
+#   m     Limit on steps (default infinite)
+#   lower Lower bound on support of the distribution (default -Inf)
+#   upper Upper bound on support of the distribution (default +Inf)
+#   gx0   Value of g(x0), if known (default is not known)
+#
+# The log density function may return -Inf for points outside the support 
+# of the distribution.  If a lower and/or upper bound is specified for the
+# support, the log density function will not be called outside such limits.
+#
+# The value of this function is the new point sampled, with an attribute
+# of "log.density" giving the value of the log density function, g, at this
+# point.  Depending on the context, this log density might be passed as the 
+# gx0 argument of a future call of uni.slice. 
+#
+# The global variable uni.slice.calls is incremented by one for each call
+# of uni.slice.  The global variable uni.slice.evals is incremented by the
+# number of calls made to the g function passed.
+#
+# WARNING:  If you provide a value for g(x0), it must of course be correct!
+# In addition to giving wrong answers, wrong values for gx0 may result in
+# the uni.slice function going into an infinite loop.
+
+uni.slice <- function (x0, g, w=1, m=Inf, lower=-Inf, upper=+Inf, gx0=NULL)
+{
+  # Check the validity of the arguments.
+  
+  if (!is.numeric(x0) || length(x0)!=1
+      || !is.function(g) 
+      || !is.numeric(w) || length(w)!=1 || w<=0 
+      || !is.numeric(m) || !is.infinite(m) && (m<=0 || m>1e9 || floor(m)!=m)
+      || !is.numeric(lower) || length(lower)!=1 || x0<lower
+      || !is.numeric(upper) || length(upper)!=1 || x0>upper
+      || upper<=lower 
+      || !is.null(gx0) && (!is.numeric(gx0) || length(gx0)!=1))
+  { 
+    stop ("Invalid slice sampling argument")
+  }
+  
+  # Keep track of the number of calls made to this function.
+  
+  uni.slice.calls <<- uni.slice.calls + 1
+  
+  # Find the log density at the initial point, if not already known.
+  
+  if (is.null(gx0)) 
+  { uni.slice.evals <<- uni.slice.evals + 1
+  gx0 <- g(x0)
+  }
+  
+  # Determine the slice level, in log terms.
+  
+  logy <- gx0 - rexp(1)
+  
+  # Find the initial interval to sample from.
+  
+  u <- runif(1,0,w)
+  L <- x0 - u
+  R <- x0 + (w-u)  # should guarantee that x0 is in [L,R], even with roundoff
+  
+  # Expand the interval until its ends are outside the slice, or until
+  # the limit on steps is reached.
+  
+  if (is.infinite(m))  # no limit on number of steps
+  { 
+    repeat
+    { if (L<=lower) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(L)<=logy) break
+      L <- L - w
+    }
+    
+    repeat
+    { if (R>=upper) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(R)<=logy) break
+      R <- R + w
+    }
+  }
+  
+  else if (m>1)  # limit on steps, bigger than one
+  { 
+    J <- floor(runif(1,0,m))
+    K <- (m-1) - J
+    
+    while (J>0)
+    { if (L<=lower) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(L)<=logy) break
+      L <- L - w
+      J <- J - 1
+    }
+    
+    while (K>0)
+    { if (R>=upper) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(R)<=logy) break
+      R <- R + w
+      K <- K - 1
+    }
+  }
+  
+  # Shrink interval to lower and upper bounds.
+  
+  if (L<lower) 
+  { L <- lower
+  }
+  if (R>upper)
+  { R <- upper
+  }
+  
+  # Sample from the interval, shrinking it on each rejection.
+  
+  repeat
+  { 
+    x1 <- runif(1,L,R)
+    
+    uni.slice.evals <<- uni.slice.evals + 1
+    gx1 <- g(x1)
+    
+    if (gx1>=logy) break
+    
+    if (x1>x0) 
+    { R <- x1
+    }
+    else 
+    { L <- x1
+    }
+  }
+  
+  # Return the point sampled, with its log density attached as an attribute.
+  
+  attr(x1,"log.density") <- gx1
+  return (x1)
+  
+}
+
+updates <- function (x0, g, reuse=FALSE)
+{ 
+  uni.slice.calls <<- 0
+  uni.slice.evals <<- 0
+  
+  s <<- numeric(ss)
+  x1 <- x0
+  s[1] <<- x0
+  last.g <- NULL
+  
+  for (i in 2:ss)
+  { for (j in 1:thin)
+  { if (reuse)
+  { x1 <- uni.slice (x1, g, w=w, m=m, lower=lower, upper=upper, 
+                     gx0=last.g)
+  last.g <- attr(x1,"log.density")
+  }
+    else
+    { x1 <- uni.slice (x1, g, w=w, m=m, lower=lower, upper=upper)
+    }
+  }
+    s[i] <<- x1
+  }
+  return(s)
+}
+
+
+```
+
+## Bayesian hierarchical model
+
+We employ a Bayesian hierarchical model (BHM) to allow for borrowing of strength across data for inferring the parameters of interest. 
+Specifically, we use a beta-binomial hierarchical model. The model is specified as follows. For FM $i$ and task $j$, we denote $Y_{ij}$ as the number of correct responses, $N_j$ as the number of questions for task $j$, and $\theta_{ij}$ as the probability parameter for a correct response for FM $i$ on task $j$. Further, we assume a binomial model for the number of correct responses along with a beta (conjugate) prior for each task-FM probability. I.e.:
+
+$$Y_{ij} | \theta_{ij} \sim Binom(\theta_{ij}, N_j)$$ is the data model, and the model for $\theta_{ij}$ is
+$$\theta_{ij} | \alpha_i, \beta_i \sim Beta(\alpha_i, \beta_i).$$
+
+Conditioning on $\theta_{ij}$, $Y_{ij}$ is independent of the rest, and likewise for $\theta_{ij}$ conditional on $\alpha_i, \beta_i$. 
+The BHM specification is completed by putting a distribution on $\alpha_i, \beta_i$:
+$$\alpha_i \sim Exp(\lambda_{\alpha})$$ and $$\beta_i \sim Exp(\lambda_{\beta}).$$
+
+These are also assumed to be independent draws. The posterior is not available in closed form. We thus implement a Gibbs sampler below. The conditional distribution of $\theta_{ij}$ given all else is a beta distribution by conjugacy. However, the conditional distributions of $\alpha_i$ given all else and $\beta_i$ given all else are not analytically recognizable distributions -- hence we use a slice sampling MCMC step within Gibbs (slice sampling due to Radford Neal). We use $\lambda_{\alpha} = \lambda_{\beta} = 1/10000$ to allow for a wide range of plausible prior success and failure counts. 
+
+
+```{r}
+# We can then do Gibbs sampling to sample from the posterior of alphas and betas
+# and then use these to draw from the posterior predictive distribution as before. 
+N_mcmc <- 20000
+n_tasks <- 19
+n_models <- 16
+Y_obs <- matrix(rep(0, n_models*n_tasks), ncol = n_tasks)
+accs <- paper_lb_1k[,-1]/100
+for(i in 1:n_models){
+  Y_obs[i,] <- as.numeric(floor(accs[i,]*task_metadata$size))
+}
+
+N_obs <- task_metadata$size
+#store samples
+cur_alphas_h <- rep(1, n_models)
+cur_betas_h  <-  rep(1, n_models)
+cur_thetas_h <- matrix(rep(.5, n_models*n_tasks), nrow = n_models)
+alpha_samps <- matrix(rep(0, n_models*N_mcmc), nrow = N_mcmc)
+beta_samps <- matrix(rep(0, n_models*N_mcmc), nrow = N_mcmc)
+theta_samps <- array(rep(0, n_models*N_mcmc*n_tasks), dim = c(n_models, n_tasks,N_mcmc))
+
+#slice sampling constants
+w <- .5
+thin <- 1
+ss <- 2
+lower <- 0
+upper <- Inf
+m <- Inf
+
+# global index variable for Gibbs sampler
+index <- 1
+# exponential prior on a
+log_prior_a <- function(a_inp){
+  return(dexp(a_inp, rate = 1/10000, log = TRUE))
+}
+# exponential prior on b
+log_prior_b <- function(b_inp){
+  return(dexp(b_inp, rate = 1/10000, log = TRUE))
+}
+log_conditional_post_a <- function(a_inp){
+  log_llh_score <- 0
+  for(j in 1:n_tasks){
+      log_llh_score <- log_llh_score + dbeta(cur_thetas_h[index,j], a_inp, cur_betas_h[index], log=TRUE)
+  }
+  return(log_llh_score+log_prior_a(a_inp))
+}
+log_conditional_post_b <- function(b_inp){
+  log_llh_score <- 0
+  for(j in 1:n_tasks){
+    log_llh_score <- log_llh_score + dbeta(cur_thetas_h[index,j], cur_alphas_h[index], b_inp, log=TRUE)
+  }
+  return(log_llh_score+log_prior_b(b_inp))
+}
+```
+
+Now we execute a Gibbs sampler:
+
+```{r}
+#Gibbs sampling
+for(iter in 1:N_mcmc){
+  #sample through thetas given rest using conjugacy
+  for(i in 1:n_models){
+    cur_alpha <- cur_alphas_h[i]
+    cur_beta <- cur_betas_h[i]
+    for(j in 1:n_tasks){
+      cur_post_alpha <- Y_obs[i,j] + cur_alpha
+      cur_post_beta <- N_obs[j] - Y_obs[i,j] + cur_beta
+      cur_thetas_h[i,j] <- rbeta(1, cur_post_alpha, cur_post_beta)
+    }
+  }
+  #reset global index
+  index <- 1
+  #sample alphas given rest with slice sampling
+  for(i in 1:n_models){
+    new_samp <- updates(cur_alphas_h[i],log_conditional_post_a)
+    cur_alphas_h[i] <- new_samp[2]
+    index <- index+1
+  }
+  #reset index
+  index <- 1
+  #sample betas given rest with slice sampling
+  for(i in 1:n_models){
+    new_samp <- updates(cur_betas_h[i],log_conditional_post_b)
+    cur_betas_h[i] <- new_samp[2]
+    index <- index+1
+  }
+  #store samples
+  alpha_samps[iter,] <- cur_alphas_h
+  beta_samps[iter,] <- cur_betas_h
+  theta_samps[,,iter] <- cur_thetas_h
+}
+```
+
+Let's do a check of mixing with some traceplots.
+
+```{r}
+library(coda)
+#pick a random alpha
+plot(as.mcmc(alpha_samps[,4]))
+#pick a random beta
+plot(as.mcmc(beta_samps[,9]))
+#pick a random theta_ij
+plot(as.mcmc(theta_samps[5,2,]))
+```
+
+Now let's sample from the posterior predictive distribution of task evaluations and 
+summarize the 95% credibility interval for each FM across tasks, for both aggregate accuracy and average ranks:
+
+```{r}
+#simulate task performances
+N_iter <- 10000
+Y_nat_sim <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+Y_str_sim <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+Y_sp_sim <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+
+Y_agg<- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+rank_avg <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+avg_ranks <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+avg_noise_ranks <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+avg_bin_ranks <- matrix(rep(0,N_iter*n_models), nrow = N_iter)
+
+#add noise to accuracies
+Y_nat_noise_cur <- rep(0, n_models)
+Y_sp_noise_cur <- rep(0, n_models)
+Y_str_noise_cur <- rep(0, n_models)
+
+#bin with floor
+Y_nat_bin_cur <- rep(0, n_models)
+Y_sp_bin_cur <- rep(0, n_models)
+Y_str_bin_cur <- rep(0, n_models)
+
+nat_index <- which(task_metadata$category == 'natural')
+sp_index <- which(task_metadata$category == 'specialized')
+str_index <- which(task_metadata$category == 'structured')
+
+#simulate from the posterior predictive distribution of evaluation results; keep
+#the total number of evaluation items the same across tasks as the actual VTAB data
+for(i in 1:N_iter){
+ cur_acc <- matrix(rep(0, n_tasks*n_models), nrow = n_models)
+ cur_acc_noise <- matrix(rep(0, n_tasks*n_models), nrow = n_models)
+ cur_acc_bin <- matrix(rep(0, n_tasks*n_models), nrow = n_models)
+  for(j in 1:n_models){
+    for(k in 1:n_tasks){
+      theta_task <- theta_samps[j,k,i+9500]
+      cur_acc[j,k] <- rbinom(1, task_metadata$size[k], theta_task)/task_metadata$size[k]
+      cur_acc_noise[j,k] <- 100*cur_acc[j,k]+rnorm(1)
+      cur_acc_bin[j,k] <- cut(100*cur_acc[j,k], breaks = seq(0, 100, by = 1), labels = FALSE)
+    }
+    Y_agg[i,j] <- 100*mean(cur_acc[j,])
+    Y_nat_sim[i,j] <- 100*mean(cur_acc[j,nat_index])
+    Y_sp_sim[i,j] <- 100*mean(cur_acc[j,sp_index])
+    Y_str_sim[i,j] <- 100*mean(cur_acc[j,str_index])
+  }
+  cur_ranks <- c()
+  cur_noise_ranks <- c()
+  cur_bin_ranks <- c()
+  for(k in 1:nrow(task_metadata)){
+   cur_ranks <- rbind(cur_ranks, rank(-cur_acc[,k]))
+   cur_noise_ranks <- rbind(cur_noise_ranks, rank(-cur_acc_noise[,k]))
+   cur_bin_ranks <- rbind(cur_bin_ranks, rank(-cur_acc_bin[,k], ties.method = "max"))
+  }
+  rank_avg[i,] <- rank(-Y_agg[i,])
+  avg_ranks[i,] <- colMeans(cur_ranks)
+  avg_noise_ranks[i,] <- colMeans(cur_noise_ranks)
+  avg_bin_ranks[i,] <- colMeans(cur_bin_ranks)
+}
+```
+
+Next we extract the appropriate credibility intervals. 
+
+Now we can extract 95% credibility intervals for aggregated accuracies and average
+ranks:
+
+```{r}
+#extract 95% credibility intervals for aggregated scores
+lower_agg <- rep(0, n_models)
+upper_agg <- rep(0, n_models)
+lower_nat <- rep(0, n_models)
+upper_nat <- rep(0, n_models)
+lower_sp <- rep(0, n_models)
+upper_sp <- rep(0, n_models)
+lower_str <- rep(0, n_models)
+upper_str <- rep(0, n_models)
+
+lower_rank_avg <- rep(0, n_models)
+upper_rank_avg <- rep(0, n_models)
+lower_avg_rank <- rep(0, n_models)
+upper_avg_rank <- rep(0, n_models)
+lower_avg_rank_noise <- rep(0, n_models)
+upper_avg_rank_noise <- rep(0, n_models)
+lower_avg_rank_bin <- rep(0, n_models)
+upper_avg_rank_bin <- rep(0, n_models)
+
+for(j in 1:n_models){
+  cur_scores <- Y_agg[,j]
+  cur_nat <- Y_nat_sim[,j]
+  cur_sp <- Y_sp_sim[,j]
+  cur_str <- Y_str_sim[,j]
+  cur_ranks <- avg_ranks[,j]
+  cur_rank_avg <- rank_avg[,j]
+  cur_ranks_noise <- avg_noise_ranks[,j]
+  cur_ranks_bin <- avg_bin_ranks[,j]
+  sorted_scores <- sort(cur_scores)
+  sorted_sp <- sort(cur_sp)
+  sorted_str <- sort(cur_str)
+  sorted_nat <- sort(cur_nat)
+  sorted_rank_avg <- sort(cur_rank_avg)
+  sorted_ranks <- sort(cur_ranks)
+  sorted_ranks_noise <- sort(cur_ranks_noise)
+  sorted_ranks_bin <- sort(cur_ranks_bin)
+  
+  lower_agg[j] <- quantile(sorted_scores, .025) 
+  upper_agg[j] <- quantile(sorted_scores, .975) 
+  lower_sp[j] <- quantile(sorted_sp, .025)
+  upper_sp[j] <- quantile(sorted_sp, .975)
+  lower_str[j] <- quantile(sorted_str, .025)
+  upper_str[j] <-  quantile(sorted_str, .975)
+  lower_nat[j] <- quantile(sorted_nat, .025)
+  upper_nat[j] <- quantile(sorted_nat, .975)
+  
+  lower_rank_avg[j] <- quantile(sorted_rank_avg, .025)
+  upper_rank_avg[j] <- quantile(sorted_rank_avg, .975)
+  lower_avg_rank[j] <- quantile(sorted_ranks, .025)
+  upper_avg_rank[j] <- quantile(sorted_ranks, .975)
+  lower_avg_rank_noise[j] <- quantile(sorted_ranks_noise, .025)
+  upper_avg_rank_noise[j] <- quantile(sorted_ranks_noise, .975)
+  lower_avg_rank_bin[j] <- quantile(sorted_ranks_bin, .025)
+  upper_avg_rank_bin[j] <- quantile(sorted_ranks_bin,.975)
+}
+```
+Collect results in data frames
+```{r}
+VTAB_Bayes_accuracy <- data.frame(lower_nat, upper_nat, lower_sp, upper_sp, lower_str, upper_str, lower_agg, upper_agg)
+VTAB_Bayes_ranks <-  data.frame(lower_rank_avg, upper_rank_avg, lower_avg_rank, upper_avg_rank, lower_avg_rank_noise, upper_avg_rank_noise, lower_avg_rank_bin, upper_avg_rank_bin)
+print(VTAB_Bayes_accuracy)
+print(VTAB_Bayes_ranks)
+```
+
+
+Posterior predictive checks, as before, show consistency between data and model:
+```{r}
+Y_agg_obs <- rep(0, n_models)
+for(i in 1:n_models){
+  Y_agg_obs[i] <- 100*mean(Y_obs[i,]/N_obs)
+}
+hist(Y_agg[,1])
+abline(v = Y_agg_obs[1], col = 'red', lwd = 3)
+hist(Y_agg[,8])
+abline(v = Y_agg_obs[8], col = 'red', lwd = 3)
+hist(Y_agg[,4])
+abline(v = Y_agg_obs[4], col = 'red', lwd = 3)
+hist(Y_agg[,12])
+abline(v = Y_agg_obs[12], col = 'red', lwd = 3)
+```
+
+Now let us extract posterior distributions over rankings. We rank models based on the estimands $\bar{\theta}_{i,NAT}$, $\bar{\theta}_{i,SP}$, and $\bar{\theta}_{i, STR}$, where $\bar{\theta}_{i,NAT}$ is the 
+arithmetic mean of $\theta_{ij}$ for $j$ indexing over natural tasks and i indexes a specific model; $\bar{\theta}_{i,SP}$ and $\bar{\theta}_{i,NAT}$ are similarly defined. Then, population ranks of models are determined based on a weighted sum $w_1\bar{\theta}_{i,NAT} + w_2\bar{\theta}_{i,SP} + w_3\bar{\theta}_{i,STR}$. Different weights can be explored. 
+
+We use posterior samples of $\theta_{ij}$ in order to get a posterior distribution over ranks. We know from the VTAB simplex plot that up-weighting structured images leads to favoring the Rotation model, which is last place overall. We see a similar pattern below, where we plot posterior distributions over ranks. 
+
+```{r}
+weights_vec <- c(.95, .025, .025)
+rank_posterior <- matrix(rep(0, dim(theta_samps)[1]*N_iter), ncol = N_iter)
+for(i in 1:N_iter){
+  str_probs <- rowMeans(theta_samps[,str_index,i+9500])
+  sp_probs <- rowMeans(theta_samps[,sp_index,i+9500])
+  nat_probs <- rowMeans(theta_samps[,nat_index,i+9500])
+  
+  weighted_probs <- weights_vec[1]*str_probs+weights_vec[2]*sp_probs+ weights_vec[3]*nat_probs
+  rank_posterior[,i] <- rank(-weighted_probs)
+}
+par(mfrow=c(3,2))
+barplot(table(rank_posterior[1,])/N_iter, main = paper_lb_1k[1,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[2,])/N_iter, main = paper_lb_1k[2,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[3,])/N_iter, main = paper_lb_1k[3,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[4,])/N_iter, main = paper_lb_1k[4,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[5,])/N_iter, main = paper_lb_1k[5,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[6,])/N_iter  ,main = paper_lb_1k[6,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+```
+
+Also consider equal weightings:
+
+```{r}
+weights_vec <- c(1/3, 1/3, 1/3)
+rank_posterior <- matrix(rep(0, dim(theta_samps)[1]*N_iter), ncol = N_iter)
+for(i in 1:N_iter){
+  str_probs <- rowMeans(theta_samps[,str_index,i+9500])
+  sp_probs <- rowMeans(theta_samps[,sp_index,i+9500])
+  nat_probs <- rowMeans(theta_samps[,nat_index,i+9500])
+  
+  weighted_probs <- weights_vec[1]*str_probs+weights_vec[2]*sp_probs+ weights_vec[3]*nat_probs
+  rank_posterior[,i] <- rank(-weighted_probs)
+}
+par(mfrow=c(3,2))
+barplot(table(rank_posterior[1,])/N_iter, main = paper_lb_1k[1,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[2,])/N_iter, main = paper_lb_1k[2,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[3,])/N_iter, main = paper_lb_1k[3,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[4,])/N_iter, main = paper_lb_1k[4,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[5,])/N_iter, main = paper_lb_1k[5,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+barplot(table(rank_posterior[6,])/N_iter  ,main = paper_lb_1k[6,1],ylab = 'posterior rank probability', xlab = 'rank', ylim = c(0,1))
+```

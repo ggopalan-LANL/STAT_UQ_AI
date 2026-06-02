@@ -1,0 +1,955 @@
+---
+title: "NeurIPS 2024 workshop intervals and plots"
+output:
+  pdf_document: default
+  html_document: default
+date: "2024-10-28"
+---
+
+## Set-up
+
+```{r seed}
+#| message: false
+set.seed(NULL)
+set.seed(5424)
+```
+
+```{r libraries}
+#| message: false
+library(tidyverse)
+library(Ternary)
+```
+
+## Existing leaderboard
+
+```{r lb-metadata}
+# 1k leaderboard from the official website
+
+# models being compared
+models <- c("Sup-Rotation-100%",
+            "Sup-Exemplar-100%",
+            "Sup-100%",
+            "Semi-Exemplar-10%",
+            "Semi-Rotation-10%",
+            "Rotation",
+            "Exemplar",
+            "Rel.Pat.Loc",
+            "Jigsaw",
+            "Uncond-BigGAN",
+            "From-Scratch",
+            "Cond-BigGAN",
+            "WAE-MMD",
+            "VAE",
+            "WAE-UKL",
+            "WAE-GAN"
+            )
+# task accuracies
+cifar100 <- c(53.7, 56.7, 57.0, 53.2,
+              48.1, 27.3 ,11.0, 19.1,
+              18.9, 15.2, 13.2, 21.1,
+              10.7, 9.89, 8.23, 7.76)
+caltech101 <- c(91.7, 90.2, 91.0, 88.6,
+                88.1, 77.6, 69.6, 68.5,
+                66.7, 58.7, 38.2, 62.1,
+                35.5, 34.3, 29.3, 29.9)
+camelyon <- c(83.4, 83.7, 80.6, 83.2,
+              81.4, 80.4, 79.1, 77.5,
+              76.0, 76.3, 75.6, 77.2,
+              73.8, 72.6, 69.8, 69.0)
+clevr_count <- c(47.3, 37.8, 41.0, 42.3,
+                 40.9, 45.6, 54.8, 43.5,
+                 42.8, 44.7, 38.8, 12.3,
+                 34.4, 36.8, 32.1, 32.4)
+clevr_dist <- c(57.2, 56.0, 56.1, 57.4,
+                55.3, 60.9, 60.9, 59.6,
+                55.9, 55.8, 55.2, 24.5,
+                58.1, 61.2, 55.2, 55.1)
+dmlab <- c(36.6, 37.8, 36.3, 36.7, 
+           37.9, 40.4, 36.7, 33.6, 
+           30.5, 28.7, 26.6, 28.1, 
+           26.3, 26.7, 22.4, 25.0)
+dtd <- c(69.5, 67.3, 66.0, 60.8, 
+         64.3, 51.4, 48.9, 52.2, 
+         51.4, 34.1, 20.6, 38.5, 
+         8.03, 10.3, 7.18, 6.54)
+eurosat <- c(96.0, 95.7, 95.3, 95.2, 
+             95.6, 93.5, 94.7, 92.6, 
+             91.5, 74.2, 85.0, 30.6, 
+             73.1, 73.1, 61.2, 59.1)
+flowers102 <- c(90.8, 88.3, 88.6, 86.8, 
+                87.6, 68.8, 69.9, 69.0, 
+                66.1, 49.9, 40.2, 60.0, 
+                18.4, 18.2, 13.1, 12.0)
+kitti_dist <- c(77.1, 77.7, 70.6, 71.4, 
+                57.4, 75.9, 75.5, 68.2, 
+                68.2, 37.2, 42.7, 41.0, 
+                55.4, 42.9, 50.9, 54.7)
+pets <- c(88.1, 89.7, 89.9, 85.3, 
+          84.6, 48.3, 42.3, 41.3, 
+          37.5, 18.7, 12.1, 23.4, 
+          9.28, 9.39, 7.75, 7.45)
+resisc45 <- c(82.0, 80.5, 80.8, 77.3, 
+              79.5, 69.4, 67.3, 65.4, 
+              66.2, 35.7, 42.6, 48.2, 
+              22.4, 23.5, 16.4, 14.4)
+retinopathy <- c(71.1, 72.4, 73.2, 71.7, 
+                 73.0, 70.9, 72.5, 70.7, 
+                 72.4, 66.1, 72.6, 73.6, 
+                 73.2, 67.7, 73.6, 73.4)
+svhn <- c(88.5, 88.9, 87.3, 88.0, 
+          87.2, 89.4, 87.1, 60.9, 
+          55.1, 65.4, 66.1, 59.4, 
+          58.7, 49.3, 36.6, 42.4)
+sun397 <- c(32.8, 34.5, 34.4, 29.0, 
+            27.0, 12.9, 13.7, 11.1, 
+            12.1, 9.43, 5.02, 11.9, 
+            4.91, 4.49, 3.32, 3.18)
+dspr_loc <- c(88.3, 84.3, 85.7, 74.9, 
+              87.5, 89.6, 91.8, 70.7, 
+              69.5, 76.8, 78.4, 54.5, 
+              86.9, 89.9, 72.9, 70.1)
+dspr_orient <- c(52.1, 53.9, 46.0, 53.9, 
+                 53.5, 49.5, 44.3, 29.3, 
+                 35.0, 48.4, 39.2, 54.7, 
+                 26.3, 23.0, 23.0, 17.8)
+snorb_azim <- c(51.6, 49.6, 45.7, 52.7, 
+                51.9, 52.2, 42.1, 47.2, 
+                44.9, 33.9, 30.1, 33.2, 
+                31.6, 35.6, 27.5, 27.0)
+snorb_elev <- c(33.7, 40.5, 35.4, 32.3, 
+                35.7, 44.3, 40.3, 35.2, 
+                36.3, 40.3, 37.6, 32.5, 
+                28.1, 37.5, 28.1, 25.4)
+
+paper_lb_1k <- data.frame(model = models,
+                          cifar100,
+                          caltech101,
+                          camelyon,
+                          clevr_count,
+                          clevr_dist,
+                          dmlab,
+                          dtd,
+                          eurosat,
+                          flowers102,
+                          kitti_dist,
+                          pets,
+                          resisc45,
+                          retinopathy,
+                          svhn,
+                          sun397,
+                          dspr_loc,
+                          dspr_orient,
+                          snorb_azim,
+                          snorb_elev
+                          )
+rm(models,
+   cifar100,
+   caltech101,
+   camelyon,
+   clevr_count,
+   clevr_dist,
+   dmlab,
+   dtd,
+   eurosat,
+   flowers102,
+   kitti_dist,
+   pets,
+   resisc45,
+   retinopathy,
+   svhn,
+   sun397,
+   dspr_loc,
+   dspr_orient,
+   snorb_azim,
+   snorb_elev)
+
+paper_lb_1k[, 2:20] <- paper_lb_1k[, 2:20]/100
+
+tasks <- c("cifar100",
+           "caltech101",
+           "camelyon",
+           "clevr_count",
+           "clevr_dist",
+           "dmlab",
+           "dtd",
+           "eurosat",
+           "flowers102",
+           "kitti_dist",
+           "pets",
+           "resisc45",
+           "retinopathy",
+           "svhn",
+           "sun397",
+           "dspr_loc",
+           "dspr_orient",
+           "snorb_azim",
+           "snorb_elev")
+
+categories <- c("natural",
+                "natural",
+                "specialized",
+                "structured",
+                "structured",
+                "structured",
+                "natural",
+                "specialized",
+                "natural",
+                "structured",
+                "natural",
+                "specialized",
+                "specialized",
+                "natural",
+                "natural",
+                "structured",
+                "structured",
+                "structured",
+                "structured")
+sizes <- c(10000,
+           6084,
+           32768,
+           15000,
+           15000,
+           22735,
+           1880,
+           5400,
+           6149,
+           711, # note kitti-dist training sizes don't match up bw github and the paper
+           3669,
+           6300,
+           42670,
+           26032,
+           21750,
+           73728,
+           73728,
+           12150,
+           12150)
+task_metadata <- data.frame(task = tasks,
+                            category = categories,
+                            size = sizes)
+rm(tasks, categories, sizes)
+```
+
+## Bootstrapping
+
+### Un-normalized
+
+```{r bootstrap-qs}
+#| message: false
+
+# for a given number of questions and acc, get a boolean for correct/incorrect for each test set question
+get_qs <- function(acc, n) {sample(c(rep(1, floor(n*acc)), rep(0, n - floor(n*acc))))}
+
+# create the fake test set with a boolean for correct/incorrect
+# lb: df with model, column for each of the 19 tasks
+# task: task name
+create_test <- function(lb, task) {
+  test <- matrix(nrow = task_metadata$size[task_metadata$task == task], ncol = nrow(lb))
+  for (i in 1:ncol(test)) {
+    test[ , i] <- get_qs(lb[[task]][i], task_metadata$size[task_metadata$task == task])
+  }
+  test
+}
+
+# get a bootstrapped sample of questions for the test set
+get_bts_sample <- function(test) {
+  test[sample(seq(nrow(test)), size = nrow(test), replace = T), ]
+}
+
+# get the accuracy across the bootstrapped samples for each model
+get_bts_accs <- function(lb, n_bts) {
+  
+  bts_acc <- array(dim = c(n_bts, nrow(lb), nrow(task_metadata) + 1))
+  
+  for (i in 1:n_bts) {
+    print(i)
+    for (k in 1:nrow(task_metadata)) {
+      test <- create_test(lb, task_metadata$task[k])
+      test_qs <- get_bts_sample(test)
+      bts_acc[i, , k] <- colSums(test_qs) / task_metadata$size[k]
+    }
+    # overall
+    bts_acc[i, , nrow(task_metadata) + 1] <- rowSums(bts_acc[i, , 1:nrow(task_metadata)]) / nrow(task_metadata)
+  }
+  
+  bts_acc
+}
+
+# format percentile 95% CIs across bootstrapped accuracies into a results dataframe
+# models: list of models for which we have bootstrapped accuracies
+# bts_acc: 3-dimensional array w/the acc results from the bootstrapped samples
+# - dim 1: bootstrap sample
+# - dim 2: model
+# - dim 3: task
+# lq: lower quantile to use for bootstrap CI
+# uq: upper quantile to use for bootstrap CI
+get_bts_ci_df <- function(models, bts_acc, lq = 0.025, uq = 0.975) {
+  
+  if(length(models) != dim(bts_acc)[2]) { 
+    stop("Wrong number of models for bootstrapped results")
+  }
+  
+  bts_acc_cat <- array(data = NA, dim = c(dim(bts_acc)[1], dim(bts_acc)[2], 4))
+  
+  for (i in 1:dim(bts_acc)[1]) {
+    # naturalized
+    bts_acc_cat[i, , 1] <- rowMeans(bts_acc[i, , which(task_metadata$category == "natural")])
+    # specialized
+    bts_acc_cat[i, , 2] <- rowMeans(bts_acc[i, , which(task_metadata$category == "specialized")])
+    # structured
+    bts_acc_cat[i, , 3] <- rowMeans(bts_acc[i, , which(task_metadata$category == "structured")])
+    # overall
+    # bts_acc_cat[i, , 4] <- bts_acc[i, , nrow(task_metadata) + 1]
+    bts_acc_cat[i, , 4] <- rowMeans(bts_acc[i, , 1:nrow(task_metadata)])
+  }
+  
+  get_pt_ci <- function(metric_ind) {
+    lci <- rep(NA, length(models))
+    est <- rep(NA, length(models))
+    uci <- rep(NA, length(models))
+    
+    for (i in 1:length(models)) {
+      lci[i] <- quantile(bts_acc_cat[, i, metric_ind], lq)
+      est[i] <- mean(bts_acc_cat[, i, metric_ind])
+      uci[i] <- quantile(bts_acc_cat[, i, metric_ind], uq)
+    }
+    
+    paste0(format(round(est*100, 1), nsmall = 1), 
+           " (", 
+           format(round(lci*100, 1), nsmall = 1), 
+           ", ", 
+           format(round(uci*100, 1), nsmall = 1), 
+           ")")
+  }
+  
+  
+  data.frame(model = models,
+             natural = get_pt_ci(1),
+             specialized = get_pt_ci(2),
+             structured = get_pt_ci(3),
+             overall = get_pt_ci(4))
+  
+}
+```
+
+```{r run-bts}
+rerun_bts <- TRUE
+if(rerun_bts) {
+  paper_bts_accs <- get_bts_accs(paper_lb_1k, 100)
+  #save(paper_bts_accs, file = here::here("neurips_analyses", "bootstrap_array-qs.Rdata"))
+} else {
+  load(paper_bts_accs, file = here::here("neurips_analyses", "bootstrap_array-qs.Rdata"))
+}
+paper_lb_uq <- get_bts_ci_df(paper_lb_1k$model, paper_bts_accs, 0.083, 0.917)
+knitr::kable(paper_lb_uq, col.names = c("Model", "Natural", "Specialized", "Structured", "Overall"))
+```
+```{r normal-ci}
+lb_cat <- paper_lb_1k %>% 
+  pivot_longer(cols = all_of(colnames(paper_lb_1k)[2:20]),
+               names_to = "task",
+               values_to = "acc") %>% 
+  left_join(task_metadata, by = "task") %>% 
+  mutate(var = acc * (1-acc) / size) %>% 
+  group_by(model, category) %>% 
+  summarize(category_acc = mean(acc),
+            sum_var = sum(var)) %>% 
+  mutate(category_var = case_when(
+    category == "natural" ~ 1/sum(task_metadata$category == "natural")^2*sum_var,
+    category == "specialized" ~ 1/sum(task_metadata$category == "specialized")^2*sum_var,
+    category == "structured" ~ 1/sum(task_metadata$category == "structured")^2*sum_var
+    ))
+
+lb_ci <- lb_cat %>% 
+  mutate(lci = category_acc - 1.39*sqrt(category_var),
+         uci = category_acc + 1.39*sqrt(category_var)) %>% 
+  mutate(ci_sum = paste0(format(round(category_acc*100, 1), nsmall = 1), " (", format(round(lci*100, 1), nsmall = 1), ", ", format(round(uci*100, 1), nsmall = 1), ")")) %>% 
+  select(model, category, ci_sum) %>% 
+  pivot_wider(names_from = category, values_from = ci_sum)
+
+lb_ov <- paper_lb_1k %>% 
+  pivot_longer(cols = all_of(colnames(paper_lb_1k)[2:20]),
+               names_to = "task",
+               values_to = "acc") %>%
+  left_join(task_metadata, by = "task") %>% 
+  mutate(var = acc * (1-acc) / size) %>%
+  group_by(model) %>% 
+  summarize(sum_var = sum(var), ov_acc = mean(acc)) %>% 
+  mutate(ov_var = 1/nrow(task_metadata)^2*sum_var) %>% 
+  mutate(lci = ov_acc - 1.39*sqrt(ov_var),
+         uci = ov_acc + 1.39*sqrt(ov_var)) %>% 
+  arrange(-ov_acc) 
+
+lb_ov_ci <- lb_ov %>% 
+  mutate(overall = paste0(format(round(ov_acc*100, 1), nsmall = 1), " (", format(round(lci*100, 1), nsmall = 1), ", ", format(round(uci*100, 1), nsmall = 1), ")")) %>% 
+  select(model, overall)
+
+lb_uq_norm <- lb_ov_ci %>% left_join(lb_ci, by = "model") %>% 
+  select(model, natural, specialized, structured, overall)
+```
+
+```{r}
+bts_ses <- rep(NA, nrow(paper_lb_1k))
+for (i in 1:nrow(paper_lb_1k)) {
+  bts_ses[i] <- sd(paper_bts_accs[,i, 20])
+}
+
+lb_ov$bts_se <- bts_ses
+lb_ov <- lb_ov %>%
+  mutate(bts_lci = ov_acc - 1.39*bts_se,
+         bts_uci = ov_acc + 1.39*bts_se)
+```
+
+```{r diff-ci}
+# bts_acc: 3-dimensional array w/the acc results from the bootstrapped samples
+# - dim 1: bootstrap sample
+# - dim 2: model
+# - dim 3: task
+
+sr_se_diff <- rep(NA, dim(paper_bts_accs)[1])
+sr_s_diff <- rep(NA, dim(paper_bts_accs)[1])
+se_s_diff <- rep(NA, dim(paper_bts_accs)[1])
+
+for (i in 1:dim(paper_bts_accs)[1]) {
+  sr_ov <- mean(paper_bts_accs[i, 1,])
+  se_ov <- mean(paper_bts_accs[i, 2,])
+  s_ov <- mean(paper_bts_accs[i, 3,])
+  
+  sr_se_diff[i] <- sr_ov - se_ov
+  sr_s_diff[i] <- sr_ov - s_ov
+  se_s_diff[i] <- se_ov - s_ov
+}
+
+diffs_bts_ci_df <- data.frame(diffs = c("SR - SE", "SR - S", "SE - S"),
+                          bts_pt_est = c(mean(sr_se_diff),
+                                         mean(sr_s_diff),
+                                         mean(se_s_diff)),
+                          bts_lci = c(quantile(sr_se_diff, 0.025/3),
+                                      quantile(sr_s_diff, 0.025/3),
+                                      quantile(se_s_diff, 0.025/3)),
+                          bts_uci = c(quantile(sr_se_diff, 1-0.025/3),
+                                      quantile(sr_s_diff, 1-0.025/3),
+                                      quantile(se_s_diff, 1-0.025/3))) %>% 
+  mutate(bts_pt_est = bts_pt_est*100,
+         bts_lci = bts_lci*100,
+         bts_uci = bts_uci*100) %>% 
+  mutate(diff_ci = paste0(format(round(bts_pt_est, 1), nsmall = 1), " (", format(round(bts_lci, 1), nsmall = 1), ", ", format(round(bts_uci, 1), nsmall = 1), ")"))
+
+diffs_ci_df <- data.frame(diffs = c("SR - SE", "SR - S", "SE - S"),
+                          pt_est = c(lb_ov$ov_acc[1] - lb_ov$ov_acc[2],
+                                     lb_ov$ov_acc[1] - lb_ov$ov_acc[3],
+                                     lb_ov$ov_acc[2] - lb_ov$ov_acc[3]),
+                          lci = c(lb_ov$ov_acc[1] - lb_ov$ov_acc[2] - qnorm(1-(0.05/2/3))*sqrt(lb_ov$ov_var[1] + lb_ov$ov_var[2]),
+                                  lb_ov$ov_acc[1] - lb_ov$ov_acc[3] - qnorm(1-(0.05/2/3))*sqrt(lb_ov$ov_var[1] + lb_ov$ov_var[3]),
+                                  lb_ov$ov_acc[2] - lb_ov$ov_acc[3] - qnorm(1-(0.05/2/3))*sqrt(lb_ov$ov_var[2] + lb_ov$ov_var[3])),
+                          uci = c(lb_ov$ov_acc[1] - lb_ov$ov_acc[2] + qnorm(1-(0.05/2/3))*sqrt(lb_ov$ov_var[1] + lb_ov$ov_var[2]),
+                                  lb_ov$ov_acc[1] - lb_ov$ov_acc[3] + qnorm(1-(0.05/2/3))*sqrt(lb_ov$ov_var[1] + lb_ov$ov_var[3]),
+                                  lb_ov$ov_acc[2] - lb_ov$ov_acc[3] + qnorm(1-(0.05/2/3))*sqrt(lb_ov$ov_var[2] + lb_ov$ov_var[3]))) %>% 
+    mutate(pt_est = pt_est*100,
+         lci = lci*100,
+         uci = uci*100) %>% 
+  mutate(diff_ci = paste0(format(round(pt_est, 1), nsmall = 1), " (", format(round(lci, 1), nsmall = 1), ", ", format(round(uci, 1), nsmall = 1), ")"))
+
+```
+
+```{r ranking}
+# ranking helper functions
+
+# calc weighted geometric mean
+calc_gmean <- function(x) {exp(mean(log(x)))}
+
+# calc weighted harmonic mean
+calc_hmean <- function(x) {1/mean(1/x)}
+
+get_bts_ranks <- function(lb, bts_acc) {
+  
+  # array to store ranking results
+  # dim 1: bootstrap sample
+  # dim 2: model
+  # dim 3: ranking strategy
+  
+  bts_rankings <- array(dim = c(dim(bts_acc)[1], nrow(lb), 6))
+  
+  for (i in 1:dim(bts_acc)[1]) {
+    # rank by arithmetic mean (weighted)
+    bts_rankings[i, , 1] <- rank(-c(rowMeans(bts_acc[i, , 1:nrow(task_metadata)])))
+    
+    # rank by geometric mean (weighted)
+    bts_rankings[i, , 2] <- rank(-apply(bts_acc[i, , 1:nrow(task_metadata)], 1, calc_gmean))
+    
+    # rank by harmonic mean (weighted)
+    bts_rankings[i, , 3] <- rank(-apply(bts_acc[i, , 1:nrow(task_metadata)], 1, calc_hmean))
+    
+    # average rank across tasks
+    bts_rankings[i, , 4] <- apply(
+      apply(-bts_acc[i, , 1:nrow(task_metadata)], 2, rank), 
+      1, 
+      mean)
+    
+    # average rank across tasks (noisy)
+    bts_rankings[i, , 5] <- apply(
+      apply(-bts_acc[i, , 1:nrow(task_metadata)]*100 + 
+              matrix(data = rnorm(nrow(lb)*nrow(task_metadata), 0, 1),
+                     nrow = nrow(lb), 
+                     ncol = nrow(task_metadata)), 
+            2, rank), 
+      1, 
+      mean)
+    
+    # robust (binned) average rank across tasks
+    bts_rankings[i, , 6] <- apply(
+      apply(
+        -apply(bts_acc[i, , 1:nrow(task_metadata)]*100, 2, cut, breaks = seq(0, 100, by = 1), labels = FALSE), 
+        2,
+        rank,
+        ties.method = "max"), 
+      1, 
+      mean)
+    
+  }
+  
+  bts_rankings
+}
+
+get_btsranks_per95ci_df <- function(models, bts_rankings) {
+  
+  if(length(models) != dim(bts_rankings)[2]) { 
+    stop("Wrong number of models for bootstrapped results")
+  }
+  
+  get_rank_pt95_ci <- function(rank_ind) {
+    lci <- apply(bts_rankings[,, rank_ind], 2, quantile, probs = 0.025)
+    est <- apply(bts_rankings[,, rank_ind], 2, mean)
+    uci <- apply(bts_rankings[,, rank_ind], 2, quantile, probs = 0.975)
+    
+    paste0(format(round(est, 1), nsmall = 1),
+           " (",
+           format(round(lci, 1), nsmall = 1),
+           ", ",
+           format(round(uci, 1), nsmall = 1),
+           ")")
+  }
+  
+  data.frame(model = models,
+             amean_uq = get_rank_pt95_ci(1),
+             gmean_uq = get_rank_pt95_ci(2),
+             hmean_uq = get_rank_pt95_ci(3),
+             avg_uq = get_rank_pt95_ci(4),
+             noisy_avg_uq = get_rank_pt95_ci(5),
+             bin_avg_uq = get_rank_pt95_ci(6))
+}
+```
+
+```{r run-ranking}
+bts_ranking <- get_bts_ranks(paper_lb_1k, paper_bts_accs)
+rank_uq <- get_btsranks_per95ci_df(paper_lb_1k$model, bts_ranking)
+```
+
+### Normalized
+
+
+
+```{r normalize-bts}
+# paper_bts_acc: 3-dimensional array w/the acc results from the bootstrapped samples
+# - dim 1: bootstrap sample
+# - dim 2: model
+# - dim 3: task
+
+bts_mat <- matrix(paper_bts_accs, 
+                  prod(dim(paper_bts_accs)[1:2]), 
+                  dim(paper_bts_accs)[3])[, 1:nrow(task_metadata)]
+
+task_mins <- apply(bts_mat, 2, min)
+task_maxs <- apply(bts_mat, 2, max)
+
+norm_bts_accs <- array(dim = dim(paper_bts_accs))
+
+for (i in 1:dim(bts_mat)[2]) {
+  norm_bts_accs[,,i] <- (paper_bts_accs[,,i] - task_mins[i]) / (task_maxs[i] - task_mins[i])
+}
+```
+
+```{r}
+norm_lb <- matrix(nrow = nrow(paper_lb_1k), ncol = ncol(paper_lb_1k) - 1)
+for (i in 2:ncol(paper_lb_1k)) {
+  norm_lb[, i-1] <- (paper_lb_1k[, i] - task_mins[i-1]) / (task_maxs[i-1] - task_mins[i-1])
+}
+```
+
+
+```{r norm-lb}
+norm_bts_ci <- get_bts_ci_df(paper_lb_1k$model, norm_bts_accs, 0.083, 0.917)
+```
+
+```{r norm-ranking}
+norm_bts_ranking <- get_bts_ranks(paper_lb_1k, norm_bts_accs)
+norm_rank_uq <- get_btsranks_per95ci_df(paper_lb_1k$model, norm_bts_ranking)
+```
+
+```{r norm-diff-ci}
+
+sr_se_diff_norm <- rep(NA, dim(norm_bts_accs)[1])
+sr_s_diff_norm <- rep(NA, dim(norm_bts_accs)[1])
+se_s_diff_norm <- rep(NA, dim(norm_bts_accs)[1])
+
+for (i in 1:dim(norm_bts_accs)[1]) {
+  sr_ov <- mean(norm_bts_accs[i, 1,1:19])
+  se_ov <- mean(norm_bts_accs[i, 2,1:19])
+  s_ov <- mean(norm_bts_accs[i, 3,1:19])
+  
+  sr_se_diff_norm[i] <- sr_ov - se_ov
+  sr_s_diff_norm[i] <- sr_ov - s_ov
+  se_s_diff_norm[i] <- se_ov - s_ov
+}
+
+diffs_bts_ci_df_norm <- data.frame(diffs = c("SR - SE", "SR - S", "SE - S"),
+                          bts_pt_est = c(mean(sr_se_diff_norm),
+                                         mean(sr_s_diff_norm),
+                                         mean(se_s_diff_norm)),
+                          bts_lci = c(quantile(sr_se_diff_norm, 0.025/3),
+                                      quantile(sr_s_diff_norm, 0.025/3),
+                                      quantile(se_s_diff_norm, 0.025/3)),
+                          bts_uci = c(quantile(sr_se_diff_norm, 1-(0.025/3)),
+                                      quantile(sr_s_diff_norm, 1-(0.025/3)),
+                                      quantile(se_s_diff_norm, 1-(0.025/3)))) %>% 
+  mutate(bts_pt_est = bts_pt_est*100,
+         bts_lci = bts_lci*100,
+         bts_uci = bts_uci*100) %>% 
+  mutate(diff_ci = paste0(format(round(bts_pt_est, 1), nsmall = 1), " (", format(round(bts_lci, 1), nsmall = 1), ", ", format(round(bts_uci, 1), nsmall = 1), ")"))
+```
+
+## Simplex plots
+
+### Un-normalized
+
+```{r plot-dfs}
+lb_cat_accs <- lb_cat %>% 
+  left_join(lb_ov, by = "model") %>% 
+  select(model, ov_acc, category, category_acc) %>% 
+  pivot_wider(names_from = category, values_from = category_acc) %>% 
+  select(model, natural, specialized, structured, ov_acc) %>% 
+  arrange(-ov_acc) %>% 
+  rename(overall = ov_acc) %>% 
+  select(model, natural, specialized, structured, overall)
+  
+lb_cat_vars <- lb_cat %>% 
+  left_join(lb_ov, by = "model") %>% 
+  select(model, ov_acc, category, category_var) %>% 
+  pivot_wider(names_from = category, values_from = category_var) %>% 
+  select(model, natural, specialized, structured, ov_acc) %>% 
+  arrange(-ov_acc) %>% 
+  rename(overall = ov_acc) %>% 
+  select(model, natural, specialized, structured) %>% 
+  rename(natural_var = natural, specialized_var = specialized, structured_var = structured)
+
+lb_cat <- lb_cat_accs %>% left_join(lb_cat_vars, by = "model")
+```
+
+```{r custom-ternary}
+
+# custom plot function for when all values same color
+sameColorTernary <- function(values, 
+                          spectrum = viridisLite::viridis(256L, alpha = 0.6),
+                          resolution = sqrt(ncol(values)),
+                          direction = getOption("ternDirection", 1L),
+                          legend, ...) {
+  z <- values["z", ]
+  col <- if (is.null(spectrum) || 
+             (!is.numeric(z) && 
+              all(suppressWarnings(is.na(as.numeric(z)))) && 
+              tryCatch(is.matrix(col2rgb(z)), error = function(e) FALSE)
+             )
+  ) {
+    z
+  } else {
+    if (!is.numeric(z)) {
+      stop("values[\"z\", ] must be numeric.\nTo colour by values[\"z\", ], set `spectrum = FALSE`.")
+    }
+    
+    zNorm <- z - min(z, na.rm = TRUE)
+    #zNorm <- zNorm / max(zNorm, na.rm = TRUE)
+    spectrum[as.integer(zNorm * (length(spectrum) - 1L)) + 1L]
+  }
+  if (!"down" %in% rownames(values)) {
+    if ("triDown" %in% rownames(values)) {
+      rownames(values)[rownames(values) == "triDown"] <- "down"
+    } else {
+      stop("`values` must contain a row labelled \"down\".")
+    }
+  }
+  TernaryTiles(as.numeric(values["x", ]), as.numeric(values["y", ]),
+               as.numeric(values["down", ]),
+               resolution = resolution, col = col, direction = direction)
+  
+  if (!missing(legend)) {
+    if (isTRUE(legend)) {
+      legend <- 4
+    }
+    if (is.numeric(legend) && length(legend) == 1) {
+      legend <- signif(seq(max(z), min(z), length.out = legend))
+    }
+    
+    SpectrumLegend(
+      legend = legend,
+      palette = spectrum,
+      ...
+    )
+  }
+  
+  # Return:
+  invisible()
+}
+
+# custom plot function for when all values same color
+discreteColorTernary <- function(values, 
+                          spectrum = viridisLite::viridis(256L, alpha = 0.6),
+                          resolution = sqrt(ncol(values)),
+                          direction = getOption("ternDirection", 1L),
+                          legend, ...) {
+  z <- values["z", ]
+  col <- if (is.null(spectrum) || 
+             (!is.numeric(z) && 
+              all(suppressWarnings(is.na(as.numeric(z)))) && 
+              tryCatch(is.matrix(col2rgb(z)), error = function(e) FALSE)
+             )
+  ) {
+    z
+  } else {
+    if (!is.numeric(z)) {
+      stop("values[\"z\", ] must be numeric.\nTo colour by values[\"z\", ], set `spectrum = FALSE`.")
+    }
+    
+    # zNorm <- z - min(z, na.rm = TRUE)
+    #zNorm <- zNorm / max(zNorm, na.rm = TRUE)
+    spectrum[z]
+  }
+  if (!"down" %in% rownames(values)) {
+    if ("triDown" %in% rownames(values)) {
+      rownames(values)[rownames(values) == "triDown"] <- "down"
+    } else {
+      stop("`values` must contain a row labelled \"down\".")
+    }
+  }
+  TernaryTiles(as.numeric(values["x", ]), as.numeric(values["y", ]),
+               as.numeric(values["down", ]),
+               resolution = resolution, col = col, direction = direction)
+  
+  if (!missing(legend)) {
+    if (isTRUE(legend)) {
+      legend <- 4
+    }
+    if (is.numeric(legend) && length(legend) == 1) {
+      legend <- signif(seq(max(z), min(z), length.out = legend))
+    }
+    
+    SpectrumLegend(
+      legend = legend,
+      palette = spectrum,
+      ...
+    )
+  }
+  
+  # Return:
+  invisible()
+}
+
+```
+
+```{r simplex-plot}
+# z: number of std errors for deciding "indeterminate"
+# resol: resolution of triangles in the plot
+plot_3d_wts <- function(lb_cat,
+                        z = 1,
+                        plot_title = "Best Performing Model Using Weighted Accuracy",
+                        resol = 30) {
+  
+  # list of models for which we have results
+  models <- lb_cat$model
+  
+  # assign each model a color
+  model_colors <- c(rainbow(length(models)), "darkgray")
+  
+  # function to find best model given a set of weights
+  get_best_model <- function(a, b, c) {
+    
+    # plotting library expects a vector to be returned
+    r <- rep(NA, length(a))
+    
+    # loop through the weights
+    for (i in 1:length(a)) {
+      
+      # calc acc for a given set of weights
+      acc <- a[i]*lb_cat$natural + b[i]*lb_cat$specialized + c[i]*lb_cat$structured
+      
+      # get the 1st/2nd place acc and 1st place se
+      top_acc <- max(acc)
+      top_acc_ind <- which.max(acc)
+      top_var <- a[i]^2*lb_cat$natural_var[top_acc_ind] + 
+                   b[i]^2*lb_cat$specialized_var[top_acc_ind] + 
+                   c[i]^2*lb_cat$structured_var[top_acc_ind]
+      sec_acc <- sort(acc, decreasing = T)[2]
+      sec_acc_ind <- order(acc, decreasing = T)[2]
+      sec_var <- a[i]^2*lb_cat$natural_var[sec_acc_ind] + 
+                       b[i]^2*lb_cat$specialized_var[sec_acc_ind] + 
+                       c[i]^2*lb_cat$structured_var[sec_acc_ind]
+      se <- sqrt(top_var + sec_var)
+      
+      # check if indeterminate
+      if ((top_acc-sec_acc)/se <= z) {
+        r[i] <- length(models) + 1
+      } else {
+        r[i] <- top_acc_ind
+      }
+      
+    }
+    
+    # return the vector
+    r
+    
+  }
+  
+  # evaluate function at ternary grid points
+  values <- TernaryPointValues(get_best_model, resolution = resol)
+  
+  # base plot
+  if(length(unique(values["z", ])) == 1) {
+    TernaryPlot(alab = "Natural", 
+                blab = "Specialized", 
+                clab = "Structured",
+                main = plot_title,
+                axis.rotate = FALSE, # upright axis labels
+                axis.labels = seq(0, 1, by = 0.1), # weights sum to 1
+                clockwise = FALSE, # so that bottom line goes left to right
+                grid.col = "black",
+                grid.minor.col = "black",
+                grid.lwd = 0.6,
+                grid.minor.lwd = 0.2,
+                panel.first = sameColorTernary(values, model_colors[values["z", 1]]),
+                padding = 0.2)
+  } else if ((length(models) + 1) %in% unique(values["z", ])){
+    TernaryPlot(alab = "Natural", 
+                blab = "Specialized", 
+                clab = "Structured",
+                main = plot_title,
+                axis.rotate = FALSE, # upright axis labels
+                axis.labels = seq(0, 1, by = 0.1), # weights sum to 1
+                clockwise = FALSE, # so that bottom line goes left to right
+                grid.col = "black",
+                grid.minor.col = "black",
+                grid.lwd = 0.6,
+                grid.minor.lwd = 0.2,
+                panel.first = ColorTernary(values, model_colors[min(values["z", ]):length(model_colors)]),
+                padding = 0.2
+    )
+    
+  } else {
+    TernaryPlot(alab = "Natural", 
+                blab = "Specialized", 
+                clab = "Structured",
+                main = plot_title,
+                axis.rotate = FALSE, # upright axis labels
+                axis.labels = seq(0, 1, by = 0.1), # weights sum to 1
+                clockwise = FALSE, # so that bottom line goes left to right
+                grid.col = "black",
+                grid.minor.col = "black",
+                grid.lwd = 0.6,
+                grid.minor.lwd = 0.2,
+                panel.first = discreteColorTernary(values, model_colors),
+                padding = 0.2
+    )
+  }
+  
+  # create the legend
+  legend(x = "topleft",
+         inset=c(-0.2,0.1),
+         title = "Model", 
+         legend = c(models, "Indeterminate"), 
+         fill = model_colors, cex = 0.8, xpd = TRUE)
+  
+  # subtitle indicating what z was for this plot
+  mtext(line=0, cex=1, paste("Indeterminate = within", z, "standard errors"))
+  
+}
+
+```
+
+### Normalized
+
+```{r}
+# norm_se <- paper_lb_1k %>% 
+#   pivot_longer(cols = all_of(colnames(paper_lb_1k)[2:20]),
+#                names_to = "task", 
+#                values_to = "norm_acc")
+
+norm_var <- matrix(nrow = nrow(paper_lb_1k), ncol = nrow(task_metadata))
+
+for (i in 1:nrow(paper_lb_1k)){
+  for (j in 1:nrow(task_metadata)) {
+    norm_var[i, j] <- var(norm_bts_accs[, i, j])
+  }
+}
+
+norm_var <- data.frame(norm_var)
+colnames(norm_var) <- task_metadata$task
+norm_var$model <- paper_lb_1k$model
+norm_var <- norm_var %>% 
+  pivot_longer(cols = all_of(task_metadata$task),
+               names_to = "task",
+               values_to = "var") %>% 
+  left_join(task_metadata, by = "task") %>% 
+  group_by(model, category) %>% 
+  summarize(sum_var = sum(var)) %>% 
+  mutate(category_var = case_when(
+    category == "natural" ~ 1/sum(task_metadata$category == "natural")^2*sum_var,
+    category == "specialized" ~ 1/sum(task_metadata$category == "specialized")^2*sum_var,
+    category == "structured" ~ 1/sum(task_metadata$category == "structured")^2*sum_var
+    ))
+
+norm_lb <- data.frame(norm_lb)
+colnames(norm_lb) <- task_metadata$task
+norm_lb$model <- paper_lb_1k$model
+
+norm_lb_long <- norm_lb %>% 
+  pivot_longer(cols = all_of(task_metadata$task),
+               names_to = "task",
+               values_to = "norm_acc") %>% 
+  left_join(task_metadata, by = "task") %>%
+  group_by(model, category) %>% 
+  summarize(cat_acc = mean(norm_acc)) %>% 
+  left_join(norm_var, by = c("model", "category"))
+
+norm_ov <- norm_lb %>% 
+  pivot_longer(cols = all_of(task_metadata$task),
+               names_to = "task",
+               values_to = "norm_acc") %>% 
+  left_join(task_metadata, by = "task") %>%
+  group_by(model) %>% 
+  summarize(ov_acc = mean(norm_acc)) %>% 
+  arrange(-ov_acc)
+
+norm_lb_cat_accs <- norm_lb_long %>% 
+  left_join(norm_ov, by = "model") %>% 
+  select(model, ov_acc, category, cat_acc) %>% 
+  pivot_wider(names_from = category, values_from = cat_acc) %>% 
+  select(model, natural, specialized, structured, ov_acc) %>% 
+  arrange(factor(model, levels = paper_lb_1k$model)) %>% 
+  rename(overall = ov_acc) %>% 
+  select(model, natural, specialized, structured, overall)
+  
+norm_cat_vars <- norm_lb_long %>% 
+  left_join(norm_ov, by = "model") %>% 
+  select(model, ov_acc, category, category_var) %>% 
+  pivot_wider(names_from = category, values_from = category_var) %>% 
+  select(model, natural, specialized, structured, ov_acc) %>% 
+  arrange(factor(model, levels = paper_lb_1k$model)) %>% 
+  rename(overall = ov_acc) %>% 
+  select(model, natural, specialized, structured) %>% 
+  rename(natural_var = natural, specialized_var = specialized, structured_var = structured)
+
+norm_cat <- norm_lb_cat_accs %>% left_join(norm_cat_vars, by = "model")
+
+```
+
+```{r}
+plot_3d_wts(norm_cat, z = 2)
+plot_3d_wts(lb_cat[1:6,], z = 1.4)
+plot_3d_wts(norm_cat[1:6,], z = 2)
+plot_3d_wts(norm_cat[1:6,], z = 1.4)
