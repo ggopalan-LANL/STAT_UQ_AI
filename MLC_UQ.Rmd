@@ -1,0 +1,193 @@
+---
+title: "MLC_UQ_Bayes"
+output:
+  pdf_document: default
+  html_document: default
+date: "2025-04-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(utiml)
+```
+
+## Bayesian approach to evaluating multilabel classification (MLC) with uncertainty quantification
+We consider employing a Bayesian approach to UQ on MLC evaluations. This approach yields full probability distributions over evaluation metrics such as precision, recall, and F-1 score, as opposed to using point estimates as is often done. This is helpful because the spread of the distributions reflects, for example, sample size -- in cases where classes are rare in the test data, our corresponding uncertainty about performance should be reflected with a wider distribution. 
+
+Our approach is to use Dirichlet-Multinomial statistical models. Let $\theta_{TPc}$ represent the true positive probability for class $c$, $\theta_{FPc}$ as the false positive probability for class $c$, $\theta_{TNc}$ represent the true negative probability for class $c$, and $\theta_{FNc}$ the false negative probability for class $c$. Note that we must have $\theta_{TPc} + \theta_{FPc} + \theta_{TNc} + \theta_{FNs} = 1$. Finally, use the same notation without $c$ to refer to the aggregate TP, FP, TN, and FN probabilities, which must also sum to 1. 
+
+Let $Y_c = (TP_c, FP_c, TN_c, FN_c)$ be evaluation counts for class $c$ -- usually this is displayed in a 2 by 2 contingency table. The statistical model is:
+$$(\theta_{TPc}, \theta_{FPc}, \theta_{TNc}, \theta_{FNc}) \sim Dirichlet(1,1,1,1)$$ and $$Y_c \sim Multinomial(\theta_{TPc}, \theta_{FPc}, \theta_{TNc}, \theta_{FNc}).$$ For now, we assume the contingency tables between classes are independent, which can be relaxed in future iterations. 
+
+Because the Dirichlet is a conjugate prior, the posterior is given by: $$(\theta_{TPc}, \theta_{FPc}, \theta_{TNc}, \theta_{FNc}) | Y_c \sim Dirichlet(1+ TP_c,1 + FP_c,1 + TN_c,1 + FN_c)$$.
+
+Common ways to assess classification schemes are to calculate precision and recall. The precision is the conditional probability that the classifier has accurately output a particular class given that it has flagged a specific class as being in the instance. Recall is the probability that the classifier will flag an object as being in an instance given that it is actually in the instance. These conditional probabilities can be calculated in terms of the parameters above, that is:
+
+$$precision = \frac{\theta_{TPc}}{\theta_{TPc}+\theta_{FPc}}$$ and
+$$recall = \frac{\theta_{TPc}}{\theta_{TPc}+\theta_{FNc}}$$ and
+$$accuracy = \theta_{TPc} + \theta_{TNc}$$.
+
+The F-1 score is also often used and is the harmonic mean between precision and recall.
+
+Therefore, given posterior samples of $(\theta_{TPc}, \theta_{FPc}, \theta_{TNc}, \theta_{FNc})$ (generated from a Dirichlet distribution as above), we can derive posterior distributions for precision, recall, F1, and accuracy. 
+
+
+## Example on real multilabel class data
+
+We demonstrate the following approach as follows on a multilabel classification dataset that involves foodtruck preferences for distinct cuisines. The dataset comes loaded in the utiml package.
+
+```{r}
+#create a split for foodtruck data
+ds <- create_holdout_partition(foodtruck, method="iterative", partitions = c(train = .7, test = .3))
+model_RF <- br(ds$train, "RF")
+model_SVM <- br(ds$train, "SVM")
+pred_RF <- predict(model_RF, ds$test)
+pred_SVM <- predict(model_SVM, ds$test)
+
+class_labels <- c('street_food',     
+'gourmet',      
+'italian_food',     
+'brazilian_food',   
+'mexican_food',      
+'chinese_food',      
+'japanese_food',     
+'arabic_food',       
+'snacks',            
+'healthy_food',     
+'fitness_food',      
+'sweets_desserts')  
+
+cm_RF <- multilabel_confusion_matrix(ds$test, pred_RF)
+RF_mat <- as.matrix(cm_RF)
+cm_SVM <- multilabel_confusion_matrix(ds$test, pred_SVM)
+SVM_mat <- as.matrix(cm_SVM)
+
+#per class sample size
+class_N <- SVM_mat[,1]+SVM_mat[,4]
+
+
+print(RF_mat)
+print(SVM_mat)
+print(ds$test$dataset[1,])
+```
+
+## UQ for aggregate counts
+
+Before we show posteriors for each class, the following posteriors are aggregating over all classes and instances. 
+
+```{r}
+#Bayes Dirichlet-Multinomial for TP, TN, FP, FN counts
+library(LaplacesDemon)
+num_class <- 12
+N_samps <- 100000
+one_vec <- rep(1,4)
+
+#First, aggregate over all instances
+total_errors_RF <- colSums(RF_mat)
+post_samps_agg_RF <- rdirichlet(n = N_samps, alpha = total_errors_RF+ one_vec)
+total_errors_SVM <- colSums(SVM_mat)
+post_samps_agg_SVM <- rdirichlet(n = N_samps, alpha = total_errors_SVM+ one_vec)
+
+#For comparison, check prior
+prior_samps <- rdirichlet(n = N_samps, alpha = one_vec)
+precision_samps_prior <- prior_samps[,1]/(prior_samps[,1]+prior_samps[,3])
+recall_samps_prior <- prior_samps[,1]/(prior_samps[,1]+prior_samps[,4])
+F1_samps_prior <- 2*prior_samps[,1]/(2*prior_samps[,1] + prior_samps[,3] + prior_samps[,4])
+acc_samps_prior <- (prior_samps[,1]+prior_samps[,2])/(prior_samps[,1]+prior_samps[,2]+prior_samps[,3]+prior_samps[,4])
+
+precision_samps_agg_RF <- post_samps_agg_RF[,1]/(post_samps_agg_RF[,1]+post_samps_agg_RF[,3])
+precision_samps_agg_SVM <- post_samps_agg_SVM[,1]/(post_samps_agg_SVM[,1]+post_samps_agg_SVM[,3])
+recall_samps_agg_RF <- post_samps_agg_RF[,1]/(post_samps_agg_RF[,1]+post_samps_agg_RF[,4])
+recall_samps_agg_SVM <- post_samps_agg_SVM[,1]/(post_samps_agg_SVM[,1]+post_samps_agg_SVM[,4])
+F1_samps_agg_RF <- 2*post_samps_agg_RF[,1]/(2*post_samps_agg_RF[,1] + post_samps_agg_RF[,3] + post_samps_agg_RF[,4])
+F1_samps_agg_SVM <- 2*post_samps_agg_SVM[,1]/(2*post_samps_agg_SVM[,1] + post_samps_agg_SVM[,3] + post_samps_agg_SVM[,4])
+acc_samps_agg_RF <- (post_samps_agg_RF[,1]+post_samps_agg_RF[,2])
+acc_samps_agg_SVM <- (post_samps_agg_SVM[,1]+post_samps_agg_SVM[,2])
+
+
+plot(density(precision_samps_agg_RF), xlim = c(0,1), ylim = c(0,20), main = paste('posterior aggregate precision, N = ',nrow(ds$test$dataset)), xlab = 'precision')
+lines(density(precision_samps_agg_SVM), lty = 'dashed')
+lines(density(precision_samps_prior), lwd = 2, lty = 'dotted')
+legend(.85, 10, legend=c("model 1", "model 2", "prior"), lty=c(1,2,3), cex=.5)
+plot(density(recall_samps_agg_RF), xlim = c(0,1), ylim = c(0,20), main = paste('posterior aggregate recall, N = ',nrow(ds$test$dataset)), xlab = 'recall')
+lines(density(recall_samps_agg_SVM), lty = 'dashed')
+lines(density(recall_samps_prior), lwd = 2, lty = 'dotted')
+legend(.85, 10, legend=c("model 1", "model 2", "prior"), lty=c(1,2,3), cex=.5)
+plot(density(F1_samps_agg_RF), xlim = c(0,1), ylim = c(0,20),main = paste('posterior aggregate F1, N = ',nrow(ds$test$dataset)), xlab = 'F1')
+lines(density(F1_samps_agg_SVM), xlim = c(0,1), lty = 'dashed')
+lines(density(F1_samps_prior), lwd = 2, lty = 'dotted')
+legend(.85, 10, legend=c("model 1", "model 2", "prior"), lty=c(1,2,3), cex=.5)
+plot(density(acc_samps_agg_RF), xlim = c(0,1), ylim = c(0,50),main = paste('posterior aggregate accuacy, N = ',nrow(ds$test$dataset)), xlab = 'F1')
+lines(density(acc_samps_agg_SVM), xlim = c(0,1), lty = 'dashed')
+lines(density(acc_samps_prior), lwd = 2, lty = 'dotted')
+legend(.05, 20, legend=c("model 1", "model 2", "prior"), lty=c(1,2,3), cex=.5)
+```
+## UQ for each class counts
+
+What is more useful to the end user is the breakdown by each class, shown below.
+
+```{r}
+precision_samps_RF <- matrix(rep(0, num_class*N_samps), nrow = num_class)
+recall_samps_RF <- matrix(rep(0, num_class*N_samps), nrow = num_class)
+F1_samps_RF <- matrix(rep(0, num_class*N_samps), nrow = num_class)
+precision_samps_SVM <- matrix(rep(0, num_class*N_samps), nrow = num_class)
+recall_samps_SVM <- matrix(rep(0, num_class*N_samps), nrow = num_class)
+F1_samps_SVM <- matrix(rep(0, num_class*N_samps), nrow = num_class)
+
+for(i in 1:num_class){
+  post_samps_RF <- rdirichlet(n = N_samps, alpha = RF_mat[i,]+one_vec)
+  precision_samps_RF[i,] <- post_samps_RF[,1]/(post_samps_RF[,1]+post_samps_RF[,3])
+  recall_samps_RF[i,] <- post_samps_RF[,1]/(post_samps_RF[,1]+post_samps_RF[,4])
+  F1_samps_RF[i,] <- 2*post_samps_RF[,1]/(2*post_samps_RF[,1] + post_samps_RF[,3] + post_samps_RF[,4])
+  
+  post_samps_SVM <- rdirichlet(n = N_samps, alpha = SVM_mat[i,]+one_vec)
+  precision_samps_SVM[i,] <- post_samps_SVM[,1]/(post_samps_SVM[,1]+post_samps_SVM[,3])
+  recall_samps_SVM[i,]  <- post_samps_SVM[,1]/(post_samps_SVM[,1]+post_samps_SVM[,4])
+  F1_samps_SVM[i,] <- 2*post_samps_SVM[,1]/(2*post_samps_SVM[,1] + post_samps_SVM[,3] + post_samps_SVM[,4])
+  
+  #make plots
+  plot(density(precision_samps_RF[i,]), xlim = c(0,1), ylim = c(0,20), main = paste(class_labels[i], 'posterior  precision, N = ', class_N[i]), xlab = 'precision')
+  lines(density(precision_samps_SVM[i,]), lty = 2)
+  legend(x =.5, y = 15, legend=c("model 1", "model 2"), lty=c(1,2), cex=1.0)
+  plot(density(recall_samps_RF[i,]), xlim = c(0,1), ylim = c(0,20), main = paste(class_labels[i],'posterior  recall, N = ', class_N[i]), xlab = 'recall')
+  lines(density(recall_samps_SVM[i,]), lty = 2)
+  legend(x=.5, y = 15,  legend=c("model 1", "model 2"), lty=c(1,2), cex=1.0)
+  plot(density(F1_samps_RF[i,]), xlim = c(0,1), ylim = c(0,20), main = paste(class_labels[i],'posterior F1, N = ', class_N[i]), xlab = 'F1')
+  lines(density(F1_samps_SVM[i,]), xlim = c(0,1), lty = 'dashed')
+  legend(x =.5, y= 15,  legend=c("model 1", "model 2"), lty=c(1,2), cex=1.0)
+  readline()
+}
+```
+
+## Calibrating probabilities
+A multilabel classifer will return scores between 0 and 1 for each class per instance, but they may not be calibrated probabilities. One way to improve calibration is to employ Platt scaling, which essentially performs a logistic regression for labels and then predicts probabilities with the logistic regression model. Empirically, the predicted probabilities using the logistic regression model often are better calibrated than the original scores. We illustrate this below, and to measure calibration, we use the Brier score, which is defined as $$BS = N^{-1}\sum_{i=1}^N (p_i - l_i)^2,$$ where $p_i$ is the predicted probability and $l_i$ is the label. A smaller Brier score is preferred as this indicates that the probability is closer to 0 when the class is 0 or closer to 1 when the class is 1. 
+
+```{r}
+RF_BS_calib <- rep(0, length(class_labels))
+SVM_BS_calib <- rep(0, length(class_labels))
+RF_BS <- rep(0, length(class_labels))
+SVM_BS <- rep(0, length(class_labels))
+
+for(i in 1:length(class_labels)){
+  RF_probs <- pred_RF[,i]
+  SVM_probs <- pred_SVM[,i]
+  tempdf <- data.frame(ds$test$dataset[,21+i], RF_probs, SVM_probs)
+  names(tempdf) <- c('label', 'RF_probs', 'SVM_probs')
+  RF.prob.fit <- glm(label ~ RF_probs, family = binomial(link = "logit"), data = tempdf)
+  SVM.prob.fit <- glm(label ~ SVM_probs, family = binomial(link = "logit"), data = tempdf)
+  RF_calib_probs <- predict(RF.prob.fit, type = 'response')
+  SVM_calib_probs <- predict(SVM.prob.fit, type = 'response')
+  
+  RF_BS_calib[i] <- mean((RF_calib_probs - tempdf$label)^2)
+  SVM_BS_calib[i] <- mean((SVM_calib_probs - tempdf$label)^2)
+  RF_BS[i] <- mean((RF_probs - tempdf$label)^2)
+  SVM_BS[i] <- mean((SVM_probs - tempdf$label)^2)
+}
+  
+RF_calib_DF <- data.frame(class_labels, RF_BS_calib, RF_BS, RF_BS_calib - RF_BS)
+names(RF_calib_DF) <- c('class', 'calibrated Brier', 'original Brier', 'diff')
+SVM_calib_DF <- data.frame(class_labels, SVM_BS_calib, SVM_BS, SVM_BS_calib - SVM_BS )
+names(SVM_calib_DF) <- c('class', 'calibrated Brier', 'original Brier', 'diff')
+print(RF_calib_DF)
+print(SVM_calib_DF)
+```
