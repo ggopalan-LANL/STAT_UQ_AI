@@ -4,6 +4,6 @@ Longjohn, R., Gopalan, G., & Casleton, E. (2025). Statistical uncertainty quanti
 
 Code is contained in self-contained R Markdown files (VTAB_BHM.Rmd and VTAB_interval_plots.RMD), which can be executed within RStudio.
 
-This repository also shows a statistically-oriented approach, in MLC_Bayes.Rmd, for uncertainty quantification on commonly used classification metrics -- precision, recall, and F1. The approach is to use a multinomial-Dirichlet statistical model, which is also mentioned in the paper referenced above.
+This repository also shows a statistically-oriented approach, in MLC_UQ.Rmd, for uncertainty quantification on commonly used classification metrics -- precision, recall, and F1. The approach is to use a multinomial-Dirichlet statistical model, which is also mentioned in the paper referenced above.
 
 This repository corresponds to O5052, AI Evaluation with UQ, as reviewed by the Richard P. Feynman Center for Innovation at Los Alamos National Laboratory.
