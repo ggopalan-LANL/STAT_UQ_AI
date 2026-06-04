@@ -1,0 +1,403 @@
+---
+title: "Bootstrap versus BHM simulation study"
+output:
+  pdf_document: default
+  html_document: default
+date: "2024-05-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+
+## Slice sampling MCMC
+Code for slice sampling from Neal et al. (2003)
+```{r}
+# R FUNCTIONS FOR PERFORMING UNIVARIATE SLICE SAMPLING.
+#
+# Radford M. Neal, 17 March 2008.
+#
+# Implements, with slight modifications and extensions, the algorithm described
+# in Figures 3 and 5 of the following paper:
+#
+#   Neal, R. M (2003) "Slice sampling" (with discussion), Annals of Statistics,
+#      vol. 31, no. 3, pp. 705-767.
+#
+# See the documentation for the function uni.slice below for how to use it.
+# The function uni.slice.test was used to test the uni.slice function.
+
+
+# GLOBAL VARIABLES FOR RECORDING PERFORMANCE.
+
+uni.slice.calls <- 0	# Number of calls of the slice sampling function
+uni.slice.evals <- 0	# Number of density evaluations done in these calls
+
+
+# UNIVARIATE SLICE SAMPLING WITH STEPPING OUT AND SHRINKAGE.
+#
+# Performs a slice sampling update from an initial point to a new point that 
+# leaves invariant the distribution with the specified log density function.
+#
+# Arguments:
+#
+#   x0    Initial point
+#   g     Function returning the log of the probability density (plus constant)
+#   w     Size of the steps for creating interval (default 1)
+#   m     Limit on steps (default infinite)
+#   lower Lower bound on support of the distribution (default -Inf)
+#   upper Upper bound on support of the distribution (default +Inf)
+#   gx0   Value of g(x0), if known (default is not known)
+#
+# The log density function may return -Inf for points outside the support 
+# of the distribution.  If a lower and/or upper bound is specified for the
+# support, the log density function will not be called outside such limits.
+#
+# The value of this function is the new point sampled, with an attribute
+# of "log.density" giving the value of the log density function, g, at this
+# point.  Depending on the context, this log density might be passed as the 
+# gx0 argument of a future call of uni.slice. 
+#
+# The global variable uni.slice.calls is incremented by one for each call
+# of uni.slice.  The global variable uni.slice.evals is incremented by the
+# number of calls made to the g function passed.
+#
+# WARNING:  If you provide a value for g(x0), it must of course be correct!
+# In addition to giving wrong answers, wrong values for gx0 may result in
+# the uni.slice function going into an infinite loop.
+
+uni.slice <- function (x0, g, w=1, m=Inf, lower=-Inf, upper=+Inf, gx0=NULL)
+{
+  # Check the validity of the arguments.
+  
+  if (!is.numeric(x0) || length(x0)!=1
+      || !is.function(g) 
+      || !is.numeric(w) || length(w)!=1 || w<=0 
+      || !is.numeric(m) || !is.infinite(m) && (m<=0 || m>1e9 || floor(m)!=m)
+      || !is.numeric(lower) || length(lower)!=1 || x0<lower
+      || !is.numeric(upper) || length(upper)!=1 || x0>upper
+      || upper<=lower 
+      || !is.null(gx0) && (!is.numeric(gx0) || length(gx0)!=1))
+  { 
+    stop ("Invalid slice sampling argument")
+  }
+  
+  # Keep track of the number of calls made to this function.
+  
+  uni.slice.calls <<- uni.slice.calls + 1
+  
+  # Find the log density at the initial point, if not already known.
+  
+  if (is.null(gx0)) 
+  { uni.slice.evals <<- uni.slice.evals + 1
+  gx0 <- g(x0)
+  }
+  
+  # Determine the slice level, in log terms.
+  
+  logy <- gx0 - rexp(1)
+  
+  # Find the initial interval to sample from.
+  
+  u <- runif(1,0,w)
+  L <- x0 - u
+  R <- x0 + (w-u)  # should guarantee that x0 is in [L,R], even with roundoff
+  
+  # Expand the interval until its ends are outside the slice, or until
+  # the limit on steps is reached.
+  
+  if (is.infinite(m))  # no limit on number of steps
+  { 
+    repeat
+    { if (L<=lower) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(L)<=logy) break
+      L <- L - w
+    }
+    
+    repeat
+    { if (R>=upper) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(R)<=logy) break
+      R <- R + w
+    }
+  }
+  
+  else if (m>1)  # limit on steps, bigger than one
+  { 
+    J <- floor(runif(1,0,m))
+    K <- (m-1) - J
+    
+    while (J>0)
+    { if (L<=lower) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(L)<=logy) break
+      L <- L - w
+      J <- J - 1
+    }
+    
+    while (K>0)
+    { if (R>=upper) break
+      uni.slice.evals <<- uni.slice.evals + 1
+      if (g(R)<=logy) break
+      R <- R + w
+      K <- K - 1
+    }
+  }
+  
+  # Shrink interval to lower and upper bounds.
+  
+  if (L<lower) 
+  { L <- lower
+  }
+  if (R>upper)
+  { R <- upper
+  }
+  
+  # Sample from the interval, shrinking it on each rejection.
+  
+  repeat
+  { 
+    x1 <- runif(1,L,R)
+    
+    uni.slice.evals <<- uni.slice.evals + 1
+    gx1 <- g(x1)
+    
+    if (gx1>=logy) break
+    
+    if (x1>x0) 
+    { R <- x1
+    }
+    else 
+    { L <- x1
+    }
+  }
+  
+  # Return the point sampled, with its log density attached as an attribute.
+  
+  attr(x1,"log.density") <- gx1
+  return (x1)
+  
+}
+
+updates <- function (x0, g, reuse=FALSE)
+{ 
+  uni.slice.calls <<- 0
+  uni.slice.evals <<- 0
+  
+  s <<- numeric(ss)
+  x1 <- x0
+  s[1] <<- x0
+  last.g <- NULL
+  
+  for (i in 2:ss)
+  { for (j in 1:thin)
+  { if (reuse)
+  { x1 <- uni.slice (x1, g, w=w, m=m, lower=lower, upper=upper, 
+                     gx0=last.g)
+  last.g <- attr(x1,"log.density")
+  }
+    else
+    { x1 <- uni.slice (x1, g, w=w, m=m, lower=lower, upper=upper)
+    }
+  }
+    s[i] <<- x1
+  }
+  return(s)
+}
+
+
+```
+
+## Data
+Here is the assumed data for the simulation study.
+
+```{r}
+set.seed(123)
+#simulation study 
+N_mcmc <- 20000
+n_tasks <- 3
+n_models <- 2
+
+Y_obs <- matrix(rep(0, n_models*n_tasks), ncol = n_tasks)
+Y_obs[1,] <- c(100,5000,10000)
+Y_obs[2,] <-  c(115,5000,10000)
+N_obs <- c(200,10000,20000)
+```
+
+## Analytical 95% confidence interval for difference in unweighted mean performance
+Here is an analytical 95% confidence interval for the difference in means
+
+```{r}
+#assume the true p's are .5,.5,.5 for model 1 and .525,.5,.5 for model 2
+#thus, model 2 is strictly better
+
+p1 <- Y_obs[1,]/N_obs
+mean(p1)
+p2 <- Y_obs[2,]/N_obs
+mean(p2)
+mean(p1)-mean(p2)
+
+#1: analytical 95% CI
+#analytical CI for comparison -- contains 0 (error)
+mean(p1)-mean(p2)-2*sqrt(sum(p1*(1-p1)/N_obs)/9+sum(p2*(1-p2)/N_obs)/9)
+mean(p1)-mean(p2)+2*sqrt(sum(p1*(1-p1)/N_obs)/9+sum(p2*(1-p2)/N_obs)/9)
+#length
+4*sqrt(sum(p1*(1-p1)/N_obs)/9+sum(p2*(1-p2)/N_obs)/9)
+
+#2:bootstrap 95% CI
+mock_test <- c()
+#generate mock responses
+for(i in 1:n_tasks){
+  mock_test[[i]] <- matrix(rep(0,n_models*N_obs[i]), ncol = n_models)
+  for(j in 1:n_models){
+    one_ind <- sample(seq(N_obs[i]), size = Y_obs[j,i], replace = FALSE)
+    mock_test[[i]][one_ind,j] <- 1
+  }
+}
+```
+
+
+## Bootstrapped 95% confidence interval for difference in unweighted mean performance
+```{r}
+mock_test <- c()
+#generate mock responses
+for(i in 1:n_tasks){
+  mock_test[[i]] <- matrix(rep(0,n_models*N_obs[i]), ncol = n_models)
+  for(j in 1:n_models){
+    one_ind <- sample(seq(N_obs[i]), size = Y_obs[j,i], replace = FALSE)
+    mock_test[[i]][one_ind,j] <- 1
+  }
+}
+
+#bootstrap samples
+N_boot <- 5000
+p_samps <- rep(0, N_boot)
+for(i in 1:N_boot){
+  task_1_ind <- sample(seq(N_obs[1]), replace = TRUE)
+  task_2_ind <- sample(seq(N_obs[2]), replace = TRUE)
+  task_3_ind <- sample(seq(N_obs[3]), replace = TRUE)
+  
+  p_11 <- sum(mock_test[[1]][task_1_ind,1])/N_obs[1]
+  p_12 <- sum(mock_test[[1]][task_1_ind,2])/N_obs[1]
+  
+  p_21 <- sum(mock_test[[2]][task_2_ind,1])/N_obs[2]
+  p_22 <- sum(mock_test[[2]][task_2_ind,2])/N_obs[2]
+  
+  p_31 <- sum(mock_test[[3]][task_3_ind,1])/N_obs[3]
+  p_32 <- sum(mock_test[[3]][task_3_ind,2])/N_obs[3]
+  
+  p_samps[i] <- (p_11+p_21+p_31)/3-(p_12+p_22+p_32)/3
+}
+
+#contains 0 -- error
+quantile(p_samps, .025)
+quantile(p_samps, .975)
+
+```
+
+## 95% credibility interval for diference in unweighted mean task performance
+```{r}
+cur_alphas_h <- rep(1, n_models)
+cur_betas_h  <-  rep(1, n_models)
+cur_thetas_h <- matrix(rep(.5, n_models*n_tasks), nrow = n_models)
+alpha_samps <- matrix(rep(0, n_models*N_mcmc), nrow = N_mcmc)
+beta_samps <- matrix(rep(0, n_models*N_mcmc), nrow = N_mcmc)
+theta_samps <- array(rep(0, n_models*N_mcmc*n_tasks), dim = c(n_models, n_tasks,N_mcmc))
+
+#slice sampling constants
+w <- .5
+thin <- 1
+ss <- 2
+lower <- 0
+upper <- Inf
+m <- Inf
+
+# global index variable for Gibbs sampler
+index <- 1
+
+log_conditional_post_a1 <- function(a_inp){
+  log_llh_score <- 0
+  for(j in 1:n_tasks){
+    log_llh_score <- log_llh_score + dbeta(cur_thetas_h[index,j], a_inp, cur_betas_h[index], log=TRUE)
+  }
+  return(log_llh_score+dnorm(a_inp, mean = 2000, sd = 10,log = TRUE))
+}
+log_conditional_post_a2 <- function(a_inp){
+  log_llh_score <- 0
+  for(j in 1:n_tasks){
+    log_llh_score <- log_llh_score + dbeta(cur_thetas_h[index,j], a_inp, cur_betas_h[index], log=TRUE)
+  }
+  return(log_llh_score+dnorm(a_inp, mean = 2100, sd = 10,log = TRUE))
+}
+log_conditional_post_b1 <- function(b_inp){
+  log_llh_score <- 0
+  for(j in 1:n_tasks){
+    log_llh_score <- log_llh_score + dbeta(cur_thetas_h[index,j], cur_alphas_h[index], b_inp, log=TRUE)
+  }
+  return(log_llh_score+dnorm(b_inp, mean = 2000, sd = 10,log = TRUE))
+}
+log_conditional_post_b2 <- function(b_inp){
+  log_llh_score <- 0
+  for(j in 1:n_tasks){
+    log_llh_score <- log_llh_score + dbeta(cur_thetas_h[index,j], cur_alphas_h[index], b_inp, log=TRUE)
+  }
+  return(log_llh_score+dnorm(b_inp, mean = 1900, sd = 10,log = TRUE))
+}
+
+#Gibbs sampling
+for(iter in 1:N_mcmc){
+  #print(iter)
+  #sample through thetas given rest using conjugacy
+  for(i in 1:n_models){
+    cur_alpha <- cur_alphas_h[i]
+    cur_beta <- cur_betas_h[i]
+    for(j in 1:n_tasks){
+      cur_post_alpha <- Y_obs[i,j] + cur_alpha
+      cur_post_beta <- N_obs[j] - Y_obs[i,j] + cur_beta
+      cur_thetas_h[i,j] <- rbeta(1, cur_post_alpha, cur_post_beta)
+    }
+  }
+  #reset global index
+  index <- 1
+  #sample alphas given rest with slice sampling
+
+  new_samp <- updates(cur_alphas_h[1],log_conditional_post_a1)
+  cur_alphas_h[1] <- new_samp[2]
+  index <- index+1
+  
+  new_samp <- updates(cur_alphas_h[2],log_conditional_post_a2)
+  cur_alphas_h[2] <- new_samp[2]
+  index <- index+1
+
+  #reset index
+  index <- 1
+  #sample betas given rest with slice sampling
+
+  new_samp <- updates(cur_betas_h[1],log_conditional_post_b1)
+  cur_betas_h[1] <- new_samp[2]
+  index <- index+1
+  
+  new_samp <- updates(cur_betas_h[2],log_conditional_post_b2)
+  cur_betas_h[2] <- new_samp[2]
+  index <- index+1
+  
+  #store samples
+  alpha_samps[iter,] <- cur_alphas_h
+  beta_samps[iter,] <- cur_betas_h
+  theta_samps[,,iter] <- cur_thetas_h
+}
+
+library(coda)
+plot(as.mcmc(alpha_samps[,1]))
+plot(as.mcmc(alpha_samps[,2]))
+plot(as.mcmc(beta_samps[,1]))
+plot(as.mcmc(beta_samps[,2]))
+#pick a random theta_ij
+plot(as.mcmc(theta_samps[2,2,]))
+
+#completely negative interval -- indicates model 2 is better -- correct
+quantile(colMeans(theta_samps[1,,10001:N_mcmc]-theta_samps[2,,10001:N_mcmc]), .025)
+quantile(colMeans(theta_samps[1,,10001:N_mcmc]-theta_samps[2,,10001:N_mcmc]), .975)
+```
